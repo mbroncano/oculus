@@ -14,13 +14,13 @@ using namespace cl;
 
 
 int main(void) {	
-	int width = 256;
-	int height = 256;
+	int width = 1024;
+	int height = 1024;
 	
 	Camera camera = (Camera) {(Vector) {50.f, 45.f, 205.6f},  (Vector) {50.f, 45.f - 0.042612f, 204.6f}};
 	Sphere spheres[] = {
-		(Sphere) {(Vector) {27.f, 16.5f, 47.f}, 16.5f,			(Material) {Diffuse, (Vector){.25f, .75f, .25f}, 0.f}},	// mirror
-		(Sphere) {(Vector) {73.f, 16.5f, 78.f}, 16.5f,			(Material) {Diffuse, (Vector){.25f, .75f, .25f}, 0.f}},		// glass
+		(Sphere) {(Vector) {27.f, 16.5f, 47.f}, 16.5f,			(Material) {Specular, (Vector){.25f, .75f, .25f}, 0.f}},	// mirror
+		(Sphere) {(Vector) {73.f, 16.5f, 78.f}, 16.5f,			(Material) {Refractive, (Vector){.25f, .75f, .75f}, 0.f}},		// glass
 		(Sphere) {(Vector) {50.f, 66.6f, 81.6f}, 7.f,			(Material) {Diffuse, (Vector){.9f, .9f, .9f}, 12.f}},		// light
 		(Sphere) {(Vector) {50.f, -1e4f + 81.6f, 81.6f}, 1e4f,	(Material) {Diffuse, (Vector){.75f, .75f, .75f}, 0.f}},		// top
 		(Sphere) {(Vector) {50.f, 1e4f, 81.6f}, 1e4f,			(Material) {Diffuse, (Vector){.75f, .75f, .75f}, 0.f}},		// bottom

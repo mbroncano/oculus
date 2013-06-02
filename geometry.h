@@ -9,14 +9,15 @@ typedef struct {
 
 __constant const Vector vec_zero = (Vector)(0.f, 0.f, 0.f);
 __constant const Vector vec_up = (Vector)(0.f, -1.f, 0.f);
+__constant const Vector vec_one = (Vector)(1.f, 1.f, 1.f);
 
 #define EPSILON 1e-2f
-#define PI 3.141592654f 
+#define PI M_PI_F
 
 #else
 #include <math.h>
 
-typedef cl_float4 Vector;
+typedef cl_float3 Vector;
 typedef struct {
 	cl_uchar r, g, b;
 } Pixel;
