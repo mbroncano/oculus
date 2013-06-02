@@ -2,7 +2,7 @@
 #define GEOMETRY_H
 
 #ifdef __IS_KERNEL
-typedef float3 Vector; 
+typedef float3 Vector; // waaay faster than float4 for CPU, the same for GPU
 typedef struct {
 	uchar r, g, b;
 } Pixel; 
@@ -10,6 +10,7 @@ typedef struct {
 __constant const Vector vec_zero = (Vector)(0.f, 0.f, 0.f);
 __constant const Vector vec_up = (Vector)(0.f, -1.f, 0.f);
 __constant const Vector vec_one = (Vector)(1.f, 1.f, 1.f);
+__constant const Vector ambient = (Vector)(.1f, .1f, .1f);
 
 #define EPSILON 1e-2f
 #define PI M_PI_F

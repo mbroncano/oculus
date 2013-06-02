@@ -6,7 +6,7 @@
 #include <iostream>
 #include <string>
 #include <fstream>
-#include <time.h>
+#include <sys/time.h>
 #include <GLUT/glut.h>
 
 
@@ -27,6 +27,13 @@ Sphere spheres[] = {
 	(Sphere) {(Vector) {50.f, 40.8f, -1e4f + 270.f}, 1e4f,	(Material) {Diffuse, (Vector){.0f, .0f, .0f}, 0.f}},		// front
 };
 int numspheres = sizeof(spheres) / sizeof(Sphere);
+
+double wallclock() {
+	struct timeval t;
+	gettimeofday(&t, NULL);
+
+	return t.tv_sec + t.tv_usec / 1000000.0;
+}
 
 struct OpenCL {
 
@@ -56,7 +63,7 @@ struct OpenCL {
 			}
 
 			cl_context_properties properties[] = { CL_CONTEXT_PLATFORM, (cl_context_properties)(platforms[0])(), 0};
-			context = Context(CL_DEVICE_TYPE_GPU, properties); 
+			context = Context(CL_DEVICE_TYPE_CPU, properties); 
 
 			devices = context.getInfo<CL_CONTEXT_DEVICES>();
 			std::cout << "[OpenCL] Number of devices: " << devices.size() << std::endl;
@@ -77,14 +84,15 @@ struct OpenCL {
 			exit(1);
 		}
 		
-		width = height = 1024;
+		width = height = 256;
 		fb = new Pixel[width*height];
 	}
 	
 	void createKernel(const char *f, const char *k) {
 		cl_int err = CL_SUCCESS;
+		double tick;
+
 		try {
-			clock_t tick;
 			std::string filename(f);
 			std::ifstream sourceFile(filename.c_str());
 			std::string sourceCode(std::istreambuf_iterator<char>(sourceFile), (std::istreambuf_iterator<char>()));
@@ -92,7 +100,7 @@ struct OpenCL {
 			Program::Sources source(1, std::make_pair(sourceCode.c_str(), sourceCode.length()+1));
 			Program program = Program(context, source);
 
-			tick = clock();
+			tick = wallclock();
 			try {
 				std::cout << "[OpenCL] Building kernel: " << filename << std::endl;
 				program.build();
@@ -104,9 +112,16 @@ struct OpenCL {
 
 				throw err;
 			}
-			printf("[OpenCL] Compile: %.2fms\n", 1000.f * (clock() - tick) / CLOCKS_PER_SEC);
+			std::cout << "[OpenCL] Build Log:\n" << program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(devices[0]) << std::endl;
+			printf("[OpenCL] Compile: %.2fms\n", 1000.f * (wallclock() - tick));
 
 			kernel = Kernel(program, "raytracer", &err);
+			
+			kernel.setArg(0, spheres_b);
+			kernel.setArg(1, numspheres);
+			kernel.setArg(2, camera_b);
+			kernel.setArg(3, fb_b);
+			
 		} catch (Error err) {
 			std::cerr << "[OpenCL] Error: " << err.what() << "(" << err.err() << ")" << std::endl;
 			exit(1);
@@ -121,35 +136,27 @@ struct OpenCL {
 		fb_b = Buffer(context, CL_MEM_WRITE_ONLY, sizeof(Pixel) * width * height);
 	}
 	
-	void executeKernel() {//int width, int height, Camera *camera, Sphere *spheres, int numspheres, Pixel *fb) {
-		
-		
+	void executeKernel() {
 		cl_int err = CL_SUCCESS;
-		try {
-			clock_t tick;
+		double tick;
 
-			tick = clock();
+		try {
+			tick = wallclock();
 		 	queue.enqueueWriteBuffer(spheres_b, CL_TRUE, 0, sizeof(Sphere) * numspheres, spheres);	
 		 	queue.enqueueWriteBuffer(camera_b, CL_TRUE, 0, sizeof(Camera), &camera);	
-			printf("[OpenCL] Write buffers: %.2fms\n", 1000.f * (clock() - tick) / CLOCKS_PER_SEC);
+			printf("[OpenCL] Write buffers: %.2f ms\n", 1000.f * (wallclock() - tick));
 
-			kernel.setArg(0, spheres_b);
-			kernel.setArg(1, numspheres);
-			kernel.setArg(2, camera_b);
-			kernel.setArg(3, fb_b);
-
+			tick = wallclock();
 			Event event;
 			NDRange global(width, height);
-
 			queue.enqueueNDRangeKernel(kernel, NullRange, global, NullRange, NULL, &event); 
 
-			tick = clock();
 			event.wait();
-			printf("[OpenCL] Execution: %.2fms\n", 1000.f * (clock() - tick) / CLOCKS_PER_SEC);
+			printf("[OpenCL] Execution: %.2f ms\n", 1000.f * (wallclock() - tick));
 
-			tick = clock();
+			tick = time(NULL);
 		 	queue.enqueueReadBuffer(fb_b, CL_TRUE, 0, sizeof(Pixel) * width * height, fb);
-			printf("[OpenCL] Read buffers: %.2fms\n", 1000.f * (clock() - tick) / CLOCKS_PER_SEC);
+			printf("[OpenCL] Read buffers: %.2fms\n", 1000.f * (wallclock() - tick));
 		}
 		catch (Error err) {
 			std::cerr << "[OpenCL] Error: " << err.what() << "(" << err.err() << ")" << std::endl;
@@ -209,12 +216,12 @@ void keyboard(unsigned char key, int x, int y) {
 }
 
 void idle() {	
-	clock_t tick = clock();
+	double tick = wallclock();
 
 	openCL->executeKernel();
 
-	float seconds = float(clock() - tick) / CLOCKS_PER_SEC;
-	sprintf(label, "size: (%d, %d), time: %0.3fs", openCL->width, openCL->height, seconds);	
+	float seconds = 1000.f * (wallclock() - tick);
+	sprintf(label, "size: (%d, %d), time: %0.3fms", openCL->width, openCL->height, seconds);	
 
 	glBindTexture(GL_TEXTURE_2D, textid);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
@@ -242,8 +249,8 @@ void init(int argc, char **argv) {
 
 int main(int argc, char **argv) {	
 	openCL = new OpenCL();
-	openCL->createKernel("raytracer.cl", "raytracer");
 	openCL->createBuffers();
+	openCL->createKernel("raytracer.cl", "raytracer");
 
 	init(argc, argv);
 	glutMainLoop();
