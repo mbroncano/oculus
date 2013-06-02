@@ -22,7 +22,7 @@ int main(void) {
 		(Sphere) {(Vector) {27.f, 16.5f, 47.f}, 16.5f,			(Material) {Specular, (Vector){.25f, .75f, .25f}, 0.f}},	// mirror
 		(Sphere) {(Vector) {73.f, 16.5f, 78.f}, 16.5f,			(Material) {Refractive, (Vector){.25f, .75f, .75f}, 0.f}},		// glass
 		(Sphere) {(Vector) {50.f, 66.6f, 81.6f}, 7.f,			(Material) {Diffuse, (Vector){.9f, .9f, .9f}, 12.f}},		// light
-		(Sphere) {(Vector) {50.f, -1e4f + 81.6f, 81.6f}, 1e4f,	(Material) {Diffuse, (Vector){.75f, .75f, .75f}, 0.f}},		// top
+		(Sphere) {(Vector) {50.f, -1e4f + 81.6f, 81.6f}, 1e4f,	(Material) {Diffuse, (Vector){.75f, .25f, .75f}, 0.f}},		// top
 		(Sphere) {(Vector) {50.f, 1e4f, 81.6f}, 1e4f,			(Material) {Diffuse, (Vector){.75f, .75f, .75f}, 0.f}},		// bottom
 		(Sphere) {(Vector) {1e4f + 1.f, 40.8f, 81.6f}, 1e4f,	(Material) {Diffuse, (Vector){.75f, .25f, .25f}, 0.f}},		// left
 		(Sphere) {(Vector) {-1e4f + 99.f, 40.8f, 81.6f}, 1e4f,	(Material) {Diffuse, (Vector){.25f, .25f, .75f}, 0.f}},		// right
@@ -37,6 +37,8 @@ int main(void) {
 	
 	cl_int err = CL_SUCCESS;
 	try {
+		clock_t tick;
+		
 		std::vector<Platform> platforms;
 		Platform::get(&platforms);
 
@@ -53,6 +55,7 @@ int main(void) {
 		
 		Program program = Program(context, source);
 		
+		tick = clock();
 		try {
 			std::cout << "Building kernel: " << filename << std::endl;
 			program.build();
@@ -63,6 +66,7 @@ int main(void) {
 			
 			throw err;
 		}
+		printf("build:\t%.2fms\n", 1000.f * (clock() - tick) / CLOCKS_PER_SEC);
 		
 
 		Kernel kernel(program, "raytracer", &err);
@@ -73,8 +77,10 @@ int main(void) {
 		Buffer camera_b = Buffer(context, CL_MEM_READ_ONLY, sizeof(Camera));
 		Buffer fb_b = Buffer(context, CL_MEM_WRITE_ONLY, sizeof(Pixel) * width * height);
 
+		tick = clock();
 	 	queue.enqueueWriteBuffer(spheres_b, CL_TRUE, 0, sizeof(Sphere) * numspheres, spheres);	
 	 	queue.enqueueWriteBuffer(camera_b, CL_TRUE, 0, sizeof(Camera), &camera);	
+		printf("write:\t%.2fms\n", 1000.f * (clock() - tick) / CLOCKS_PER_SEC);
 
 		kernel.setArg(0, spheres_b);
 		kernel.setArg(1, numspheres);
@@ -83,14 +89,16 @@ int main(void) {
 
 		Event event;
 		NDRange global(width, height);
+
 		queue.enqueueNDRangeKernel(kernel, NullRange, global, NullRange, NULL, &event); 
 
-		clock_t tick = clock();
+		tick = clock();
 		event.wait();
-		float seconds = 1000.f * (clock() - tick) / CLOCKS_PER_SEC;
-		printf("time: %fms\n", seconds);
+		printf("exec:\t%.2fms\n", 1000.f * (clock() - tick) / CLOCKS_PER_SEC);
 
+		tick = clock();
 	 	queue.enqueueReadBuffer(fb_b, CL_TRUE, 0, sizeof(Pixel) * width * height, fb);
+		printf("read:\t%.2fms\n", 1000.f * (clock() - tick) / CLOCKS_PER_SEC);
 	
 		std::ofstream outputFile("result.ppm");
 		outputFile << "P6\n" << width << " " << height << "\n255\n";

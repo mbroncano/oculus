@@ -79,10 +79,6 @@ static Vector sampleRay(const Ray ray, __global const Sphere *spheres, const int
 	Ray r = ray;
 	
 	while (--depth && bounce) {	
-		/*if (--depth == 0) {
-			return (Vector)(.75f, 0.f, .75f);
-		}*/
-		
 		__global Sphere *s = 0;
 		float distance = intersectRay(r, spheres, numspheres, &s);
 
@@ -105,7 +101,7 @@ static Vector sampleRay(const Ray ray, __global const Sphere *spheres, const int
 				}
 
 				if (s->m.s == Diffuse) {
-					Vector ambient = (Vector)(.2f, .2f, .2f);
+					Vector ambient = (Vector)(.1f, .1f, .1f);
 					ill = sampleLights(s, r, hit_point, normal, spheres, numspheres) + ambient;
 					bounce = false;
 				} else if (s->m.s == Specular) {
@@ -119,7 +115,7 @@ static Vector sampleRay(const Ray ray, __global const Sphere *spheres, const int
 					
 					if (cos_t2 < 0.f) {
 						r.o = hit_point + normal * EPSILON;
-						r.d = r.d + 2.f * cos_i * normal;
+						r.d = r.d - 2.f * cos_i * normal;
 					} else {
 						r.o = hit_point - normal * EPSILON;
 						r.d = n * r.d + (n * cos_i - sqrt(cos_t2)) * normal;
