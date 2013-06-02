@@ -11,85 +11,120 @@ static float sphereDistance(Ray r, __global const Sphere *s)
 	float c = dot(v, v) - (s->r * s->r);
 	float d = b * b - 4 * a * c;
 	if (d < 0.f) {
-		return FLT_MAX;
+		return INFINITY;
 	}
 
 	d = sqrt(d);
-	float s0 = -b + d;
-	float s1 = -b - d;
 	float t = 2 * a;
+	float s0 = (-b + d) / t;
+	float s1 = (-b - d) / t;
 
 	// TODO: optimize for SIMT
 	if (s0 < 0) {
-		return s1 / t;
+		return s1;
 	} else if (s1 < 0) {
-		return s0 / t;
+		return s0;
 	} else if (s0 > s1) {
-		return s1 / t;
+		return s1;
 	} else {
-		return s0 / t;
+		return s0;
 	}
 }
 
-static Vector sampleRay(Ray r, __global const Sphere *spheres, int numspheres)
+static float intersectRay(const Ray r, __global const Sphere *spheres, const int numspheres, __global const Sphere **s)
 {
-	int depth = 6;
-	bool bounce = 1;
-	Vector sample = vec_zero;
+	float distance = INFINITY;
+	for (int i = 0; i < numspheres; i++) {
+		float d = sphereDistance(r, spheres + i);
+		if (d < distance) {
+			*s = spheres + i;
+			distance = d;
+		}
+	}
+	return distance;
+}
+
+static Vector sampleLights(__global const Sphere *s, const Ray r, const Vector hit_point, const Vector normal, __global const Sphere *spheres, const int numspheres)
+{
+	Vector illu = vec_zero;
 	
-	while (depth-- && bounce) {	
-		float distance = INFINITY;	
-		__global const Sphere *s = 0;
-		for (int i = 0; i < numspheres; i++) {
-			float d = sphereDistance(r, spheres + i);
-			if (d < distance) {
-				s = spheres + i;
-				distance = d;
+	for (int i = 0; i < numspheres; i++) {
+		__global const Sphere *l = spheres + i;
+		if (l->m.e != 0.f) {
+			Ray s_ray;
+			s_ray.o = hit_point + normal * EPSILON;
+			s_ray.d = (l->c - hit_point);
+
+			__global const Sphere *h;
+			float dist_shadow = intersectRay(s_ray, spheres, numspheres, &h);
+
+			if ((h == l) || (h == s)){
+				Vector emission = l->m.c * l->m.e;
+				float lambert = max(0.f, dot(normalize(s_ray.d), normal));
+				float blinn = pow(dot(normalize(s_ray.d + r.d), normal), 64.f);
+				float attenuation = sqrt(length(s_ray.d));
+
+				illu = illu + emission * (lambert + blinn) * 0.5f / attenuation;
 			}
 		}
+	}
+	return illu;
+}
 
-		if (distance != INFINITY) {
+static Vector sampleRay(const Ray ray, __global const Sphere *spheres, const int numspheres)
+{
+	int depth = 6;
+	bool bounce = true;
+	Vector sample = vec_zero;
+	Ray r = ray;
+	
+	while (depth-- && bounce) {	
+		__global Sphere *s = 0;
+		float distance = intersectRay(r, spheres, numspheres, &s);
+
+		if (distance == INFINITY) {
+			bounce = 0;
+		} else {
 			Vector ill = vec_zero;
 			if (s->m.e != 0.f) {
 				ill = s->m.e;
-				bounce = 0;
+				bounce = false;
 			} else {
-				Vector hit_point = r.o + r.d * (distance + FLT_EPSILON);
+				bool inside = false;
+				Vector hit_point = r.o + r.d * distance;
 				Vector normal = normalize(hit_point - s->c);
-				float cos_i = dot(normal, r.d);
+				float cos_i = dot(normal, normalize(r.d));
 				if (cos_i > 0.f) {
 					normal = normal * -1.f;
+					inside = true;
 				}
 
 				if (s->m.s == Diffuse) {
-					for (int i = 0; i < numspheres; i++) {
-						__global const Sphere *l = spheres + i;
-						if (l->m.e == 0.f)
-							continue;
-				
-						Ray s_ray;
-						s_ray.o = hit_point;
-						s_ray.d = normalize(l->c - hit_point);
-
-						float dist_shadow = FLT_MAX;
-						for (int j = 0; j < numspheres; j++) {
-							float d = sphereDistance(r, spheres + j);
-							if (d < dist_shadow) {
-								dist_shadow = d;
-							}
-						}
-						if (dist_shadow == FLT_MAX)
-							continue;	
-
-						float lambert = max(0.f, dot(s_ray.d, normal));
-						float attenuation = length(s_ray.d);
-			
-						ill = ill + (l->m.c * l->m.e) * lambert / attenuation;
-					}
-					bounce = 0;
+					ill = sampleLights(s, r, hit_point, normal, spheres, numspheres);
+//					ill = ill + (Vector)(1.f, 1.f, 1.f) * 0.1f; // ambient
+					bounce = false;
 				} else if (s->m.s == Specular) {
-					r.o = hit_point;
+					r.o = hit_point + normal * EPSILON;
 					r.d = r.d + 2.f * cos_i * normal;
+				} else if (s->m.s == Refractive) {
+					float n1 = 1.f;
+					float n2 = 1.5f;
+					float n = n1 / n2;
+					
+					if (inside) {
+						n = 1.f / n;
+						//cos_i = -1.f * cos_i;
+					}
+					
+					float cos_t2 = 1.f - pow(n, 2.f) * (1.f - pow(cos_i, 2.f));
+					if (cos_t2 < 0.f) {
+						r.o = hit_point;
+						r.d = r.d - 2.f * cos_i * normal;
+					} else {
+						float cos_t = sqrt(cos_t2);
+						r.o = r.o + r.d * (distance + 1.f);
+						r.d = n * r.d + (n * cos_i - cos_t ) * normal;
+					}
 				}
 			}
 		
@@ -104,7 +139,7 @@ static Ray cameraRay( __global const Camera *camera, int x, int y, int width, in
 {
 	Vector d = normalize(camera->t - camera->o);
 	
-	float fov = M_PI_2 / 180.f * 45.f;
+	float fov = PI / 360.f * 45.f;
 	Vector vx = normalize(cross(d, vec_up)) * (width * fov / height);
 	Vector vy = normalize(cross(vx, d)) * fov;
 	

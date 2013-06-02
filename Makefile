@@ -8,4 +8,4 @@ oculus: $(SRC) Makefile raytracer.cl geometry.h cl.hpp
 all: oculus
 
 clean:
-	rm -rf oculus
+	rm -rf oculus result.ppm result.png

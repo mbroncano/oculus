@@ -10,6 +10,9 @@ typedef struct {
 __constant const Vector vec_zero = (Vector)(0.f, 0.f, 0.f);
 __constant const Vector vec_up = (Vector)(0.f, -1.f, 0.f);
 
+#define EPSILON 1e-2f
+#define PI 3.141592654f 
+
 #else
 #include <math.h>
 
@@ -52,7 +55,7 @@ typedef struct {
 } Ray;
 
 typedef enum {
-	Diffuse, Specular
+	Diffuse, Specular, Refractive
 } Surface;
 
 typedef struct {

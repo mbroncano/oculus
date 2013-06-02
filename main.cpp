@@ -6,6 +6,7 @@
 #include <iostream>
 #include <string>
 #include <fstream>
+#include <time.h>
 
 using namespace cl;
 
@@ -13,14 +14,14 @@ using namespace cl;
 
 
 int main(void) {	
-	int width = 1024;
-	int height = 1024;
+	int width = 256;
+	int height = 256;
 	
 	Camera camera = (Camera) {(Vector) {50.f, 45.f, 205.6f},  (Vector) {50.f, 45.f - 0.042612f, 204.6f}};
 	Sphere spheres[] = {
-		(Sphere) {(Vector) {27.f, 16.5f, 47.f}, 16.5f,			(Material) {Specular, (Vector){.25f, .75f, .25f}, 0.f}},	// mirror
+		(Sphere) {(Vector) {27.f, 16.5f, 47.f}, 16.5f,			(Material) {Diffuse, (Vector){.25f, .75f, .25f}, 0.f}},	// mirror
 		(Sphere) {(Vector) {73.f, 16.5f, 78.f}, 16.5f,			(Material) {Diffuse, (Vector){.25f, .75f, .25f}, 0.f}},		// glass
-		(Sphere) {(Vector) {50.f, 66.6f, 81.6f}, 7.f,			(Material) {Diffuse, (Vector){.9f, .9f, .9f}, 1.f}},		// light
+		(Sphere) {(Vector) {50.f, 66.6f, 81.6f}, 7.f,			(Material) {Diffuse, (Vector){.9f, .9f, .9f}, 12.f}},		// light
 		(Sphere) {(Vector) {50.f, -1e4f + 81.6f, 81.6f}, 1e4f,	(Material) {Diffuse, (Vector){.75f, .75f, .75f}, 0.f}},		// top
 		(Sphere) {(Vector) {50.f, 1e4f, 81.6f}, 1e4f,			(Material) {Diffuse, (Vector){.75f, .75f, .75f}, 0.f}},		// bottom
 		(Sphere) {(Vector) {1e4f + 1.f, 40.8f, 81.6f}, 1e4f,	(Material) {Diffuse, (Vector){.75f, .25f, .25f}, 0.f}},		// left
@@ -40,7 +41,7 @@ int main(void) {
 		Platform::get(&platforms);
 
 		cl_context_properties properties[] = { CL_CONTEXT_PLATFORM, (cl_context_properties)(platforms[0])(), 0};
-		Context context(CL_DEVICE_TYPE_CPU, properties); 
+		Context context(CL_DEVICE_TYPE_GPU, properties); 
 
 		std::vector<Device> devices = context.getInfo<CL_CONTEXT_DEVICES>();
 
@@ -84,7 +85,10 @@ int main(void) {
 		NDRange global(width, height);
 		queue.enqueueNDRangeKernel(kernel, NullRange, global, NullRange, NULL, &event); 
 
+		clock_t tick = clock();
 		event.wait();
+		float seconds = 1000.f * (clock() - tick) / CLOCKS_PER_SEC;
+		printf("time: %fms\n", seconds);
 
 	 	queue.enqueueReadBuffer(fb_b, CL_TRUE, 0, sizeof(Pixel) * width * height, fb);
 	
