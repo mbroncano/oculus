@@ -16,7 +16,7 @@ using namespace cl;
 
 Camera camera = (Camera) {(Vector) {50.f, 45.f, 205.6f},  (Vector) {50.f, 45.f - 0.042612f, 204.6f}};
 Sphere spheres[] = {
-	(Sphere) {(Vector) {27.f, 16.5f, 47.f}, 16.5f,			(Material) {Specular, (Vector){.1f, .9f, .1f}, 0.f}},	// mirror
+	(Sphere) {(Vector) {27.f, 16.5f, 47.f}, 16.5f,			(Material) {Specular, (Vector){.9f, .9f, .9f}, 0.f}},	// mirror
 	(Sphere) {(Vector) {73.f, 16.5f, 78.f}, 16.5f,			(Material) {Refractive, (Vector){.9f, .9f, .9f}, 0.f}},		// glass
 	(Sphere) {(Vector) {50.f, 66.6f, 81.6f}, 7.f,			(Material) {Diffuse, (Vector){.9f, .9f, .9f}, 12.f}},		// light
 	(Sphere) {(Vector) {50.f, -1e4f + 81.6f, 81.6f}, 1e4f,	(Material) {Diffuse, (Vector){.75f, .75f, .75f}, 0.f}},		// top
@@ -43,7 +43,7 @@ struct OpenCL {
 	Context context;
 	Kernel kernel;
 	CommandQueue queue;
-	Pixel *fb;
+
 	int width;
 	int height;
 
@@ -66,6 +66,7 @@ struct OpenCL {
 			CGLContextObj glContext = CGLGetCurrentContext();
 			CGLShareGroupObj shareGroup = CGLGetShareGroup(glContext);
 
+			// mac os only!
 			cl_context_properties properties[] = {
 				CL_CONTEXT_PROPERTY_USE_CGL_SHAREGROUP_APPLE, (cl_context_properties)shareGroup,
 				CL_CONTEXT_PLATFORM, (cl_context_properties)(platforms[0])(), 
@@ -96,8 +97,7 @@ struct OpenCL {
 			exit(1);
 		}
 		
-		width = height = 256;
-		fb = new Pixel[width*height];
+		width = height = 512;
 	}
 	
 	void createKernel(const char *f, const char *k) {
@@ -148,12 +148,14 @@ struct OpenCL {
 	
 	Buffer spheres_b, camera_b;
 	ImageGL fb_b;
+	std::vector<Memory> glObjects;
 	
 	void createBuffers() {
 		try {
-			spheres_b = Buffer(context, CL_MEM_READ_ONLY, sizeof(Sphere) * numspheres);
-			camera_b = Buffer(context, CL_MEM_READ_ONLY, sizeof(Camera));
+			spheres_b = Buffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(Sphere) * numspheres, spheres);
+			camera_b = Buffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(Camera), &camera);
 			fb_b = ImageGL(context, CL_MEM_WRITE_ONLY, GL_TEXTURE_2D, 0, textid);
+			glObjects.push_back(fb_b);
 		} catch (Error err) {
 			std::cerr << "[OpenCL] Error: " << err.what() << "(" << err.err() << ")" << std::endl;
 			exit(1);
@@ -165,13 +167,7 @@ struct OpenCL {
 		double tick;
 
 		try {
-			std::vector<Memory> glObjects;
-			glObjects.push_back(fb_b);
-			
 			tick = wallclock();
-		 	queue.enqueueWriteBuffer(spheres_b, CL_TRUE, 0, sizeof(Sphere) * numspheres, spheres);	
-		 	queue.enqueueWriteBuffer(camera_b, CL_TRUE, 0, sizeof(Camera), &camera);
-		
 			queue.enqueueAcquireGLObjects(&glObjects);
 			//printf("[OpenCL] Write buffers: %.2f ms\n", 1000.f * (wallclock() - tick));
 
@@ -223,7 +219,7 @@ void display() {
 	glEnd();
 
 	glEnable(GL_BLEND);
-	glBlendFunc (GL_ONE, GL_ONE);
+	glBlendFunc (GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 	glColor4f(0.f, 0.f, 0.8f, 0.7f);
 	glRecti(10.f, 10.f, screen_w - 10.f, 40.f);
 

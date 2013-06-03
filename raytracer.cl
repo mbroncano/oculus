@@ -100,7 +100,7 @@ inline Vector sampleLights(__local const Sphere *s, const Ray r, const Vector hi
 	}
 	return illu;
 }
-
+/*
 inline Vector sampleRay(const Ray ray, __local const Sphere *spheres, const int numspheres)
 {
 	int depth = 6;
@@ -168,6 +168,7 @@ inline Vector sampleRay(const Ray ray, __local const Sphere *spheres, const int 
 
 	return sample;
 }
+*/
 
 #define MAX_STACK 10
 #define MAX_DEPTH 6
@@ -183,6 +184,7 @@ typedef struct {
 	int size;
 } stack_t;
 
+// todo: boundaries check
 #define push_stack(_s, _r, _d, _a) { _s.entries[_s.size].ray = _r; _s.entries[_s.size].depth = _d; _s.entries[_s.size].atte = _a; _s.size++; }
 #define pop_stack(_s, _r, _d, _a) { _s.size--; _r = _s.entries[_s.size].ray; _d = _s.entries[_s.size].depth; _a = _s.entries[_s.size].atte; }
 
@@ -284,8 +286,9 @@ static Ray cameraRay( __global const Camera *camera, float x, float y, int width
 	
 	float fx = (float)x / width - 0.5f;
 	float fy = (float)y / height - 0.5f;
+	float zoom = 1.f;
 	
-	Ray ray = {camera->o, normalize(d + vx * fx + vy * fy)};
+	Ray ray = {camera->o, normalize(d + zoom * vx * fx + zoom * vy * fy)};
 	
 	return ray;
 }
@@ -302,7 +305,7 @@ kernel void raytracer(__global Sphere *spheres, int numspheres, __global const C
 	wait_group_events(1, &event);
 
 	Vector pixel = vec_zero;
-	int samples = 2;
+	int samples = 3;
 	float samples2 = samples * samples;
 	
 	for (int j = 0; j < samples; j ++) {
