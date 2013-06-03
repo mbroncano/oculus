@@ -8,7 +8,7 @@ typedef struct {
 } Pixel; 
 
 __constant const Vector vec_zero = (Vector)(0.f, 0.f, 0.f);
-__constant const Vector vec_up = (Vector)(0.f, -1.f, 0.f);
+__constant const Vector vec_up = (Vector)(0.f, 1.f, 0.f);
 __constant const Vector vec_one = (Vector)(1.f, 1.f, 1.f);
 __constant const Vector ambient = (Vector)(.1f, .1f, .1f);
 

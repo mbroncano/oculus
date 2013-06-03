@@ -16,10 +16,10 @@ using namespace cl;
 
 Camera camera = (Camera) {(Vector) {50.f, 45.f, 205.6f},  (Vector) {50.f, 45.f - 0.042612f, 204.6f}};
 Sphere spheres[] = {
-	(Sphere) {(Vector) {27.f, 16.5f, 47.f}, 16.5f,			(Material) {Specular, (Vector){.25f, .75f, .25f}, 0.f}},	// mirror
-	(Sphere) {(Vector) {73.f, 16.5f, 78.f}, 16.5f,			(Material) {Refractive, (Vector){.25f, .75f, .75f}, 0.f}},		// glass
+	(Sphere) {(Vector) {27.f, 16.5f, 47.f}, 16.5f,			(Material) {Specular, (Vector){.1f, .9f, .1f}, 0.f}},	// mirror
+	(Sphere) {(Vector) {73.f, 16.5f, 78.f}, 16.5f,			(Material) {Refractive, (Vector){.9f, .9f, .9f}, 0.f}},		// glass
 	(Sphere) {(Vector) {50.f, 66.6f, 81.6f}, 7.f,			(Material) {Diffuse, (Vector){.9f, .9f, .9f}, 12.f}},		// light
-	(Sphere) {(Vector) {50.f, -1e4f + 81.6f, 81.6f}, 1e4f,	(Material) {Diffuse, (Vector){.75f, .25f, .75f}, 0.f}},		// top
+	(Sphere) {(Vector) {50.f, -1e4f + 81.6f, 81.6f}, 1e4f,	(Material) {Diffuse, (Vector){.75f, .75f, .75f}, 0.f}},		// top
 	(Sphere) {(Vector) {50.f, 1e4f, 81.6f}, 1e4f,			(Material) {Diffuse, (Vector){.75f, .75f, .75f}, 0.f}},		// bottom
 	(Sphere) {(Vector) {1e4f + 1.f, 40.8f, 81.6f}, 1e4f,	(Material) {Diffuse, (Vector){.75f, .25f, .25f}, 0.f}},		// left
 	(Sphere) {(Vector) {-1e4f + 99.f, 40.8f, 81.6f}, 1e4f,	(Material) {Diffuse, (Vector){.25f, .25f, .75f}, 0.f}},		// right
@@ -63,7 +63,7 @@ struct OpenCL {
 			}
 
 			cl_context_properties properties[] = { CL_CONTEXT_PLATFORM, (cl_context_properties)(platforms[0])(), 0};
-			context = Context(CL_DEVICE_TYPE_CPU, properties); 
+			context = Context(CL_DEVICE_TYPE_GPU, properties); 
 
 			devices = context.getInfo<CL_CONTEXT_DEVICES>();
 			std::cout << "[OpenCL] Number of devices: " << devices.size() << std::endl;
@@ -75,6 +75,10 @@ struct OpenCL {
 				std::cout << "[OpenCL] * Version: " << d.getInfo<CL_DEVICE_VERSION>() << std::endl;
 				std::cout << "[OpenCL] * Extensions: " << d.getInfo<CL_DEVICE_EXTENSIONS>() << std::endl;
 				std::cout << "[OpenCL] * Compute units: " << d.getInfo<CL_DEVICE_MAX_COMPUTE_UNITS>() << std::endl;
+				std::cout << "[OpenCL] * Global mem size: " << d.getInfo<CL_DEVICE_GLOBAL_MEM_SIZE>() << std::endl;
+				std::cout << "[OpenCL] * Local mem size: " << d.getInfo<CL_DEVICE_LOCAL_MEM_SIZE>() << std::endl;
+				std::cout << "[OpenCL] * Local mem size: " << d.getInfo<CL_DEVICE_LOCAL_MEM_SIZE>() << std::endl;
+				std::cout << "[OpenCL] * Work groups: " << d.getInfo<CL_DEVICE_MAX_WORK_GROUP_SIZE>() << std::endl;
 			}
 			
 			queue = CommandQueue(context, devices[0], 0, &err);
@@ -121,6 +125,11 @@ struct OpenCL {
 			kernel.setArg(1, numspheres);
 			kernel.setArg(2, camera_b);
 			kernel.setArg(3, fb_b);
+			kernel.setArg(4, sizeof(Sphere) * numspheres, NULL);
+			
+			std::cout << "[OpenCL] Kernel: " << k << std::endl;
+			std::cout << "[OpenCL] * Private mem size: " << kernel.getWorkGroupInfo<CL_KERNEL_PRIVATE_MEM_SIZE>(devices[0]) << std::endl;
+			std::cout << "[OpenCL] * Local mem size: " << kernel.getWorkGroupInfo<CL_KERNEL_LOCAL_MEM_SIZE>(devices[0]) << std::endl;
 			
 		} catch (Error err) {
 			std::cerr << "[OpenCL] Error: " << err.what() << "(" << err.err() << ")" << std::endl;
@@ -154,7 +163,7 @@ struct OpenCL {
 			event.wait();
 			printf("[OpenCL] Execution: %.2f ms\n", 1000.f * (wallclock() - tick));
 
-			tick = time(NULL);
+			tick = wallclock();
 		 	queue.enqueueReadBuffer(fb_b, CL_TRUE, 0, sizeof(Pixel) * width * height, fb);
 			printf("[OpenCL] Read buffers: %.2fms\n", 1000.f * (wallclock() - tick));
 		}
@@ -189,10 +198,10 @@ void display() {
 
 	glBindTexture(GL_TEXTURE_2D, textid);
 	glBegin(GL_QUADS);
-	glTexCoord2f(0.0f, 1.0f); glVertex2f(0.0f, 0.0f);
-	glTexCoord2f(1.0f, 1.0f); glVertex2f(screen_w - 1.0f, 0.0f);
-	glTexCoord2f(1.0f, 0.0f); glVertex2f(screen_w - 1.0f, screen_h - 1.0f);
-	glTexCoord2f(0.0f, 0.0f); glVertex2f(0.0f,  screen_h - 1.0f);
+	glTexCoord2f(0.0f, 0.0f); glVertex2f(0.0f, 0.0f);
+	glTexCoord2f(1.0f, 0.0f); glVertex2f(screen_w - 1.0f, 0.0f);
+	glTexCoord2f(1.0f, 1.0f); glVertex2f(screen_w - 1.0f, screen_h - 1.0f);
+	glTexCoord2f(0.0f, 1.0f); glVertex2f(0.0f,  screen_h - 1.0f);
 	glEnd();
 
 	glEnable(GL_BLEND);
