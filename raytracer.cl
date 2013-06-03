@@ -2,6 +2,14 @@
 
 #include "geometry.h"
 
+__constant const Vector vec_zero = (Vector)(0.f, 0.f, 0.f);
+__constant const Vector vec_up =   (Vector)(0.f, 1.f, 0.f);
+__constant const Vector vec_one =  (Vector)(1.f, 1.f, 1.f);
+__constant const Vector ambient =  (Vector)(.1f, .1f, .1f);
+
+#define EPSILON 1e-2f
+#define PI M_PI_F
+
 // optimized; assumes ray direction is normalized (so the 'a' term can be 1.f)
 inline float sphereDistance(Ray r, __local const Sphere *s)
 {
@@ -282,7 +290,7 @@ static Ray cameraRay( __global const Camera *camera, float x, float y, int width
 	return ray;
 }
 
-kernel void raytracer(__global Sphere *spheres, int numspheres, __global const Camera *camera, __global Pixel *fb, __local const Sphere *spheres_l)
+kernel void raytracer(__global Sphere *spheres, int numspheres, __global const Camera *camera, write_only image2d_t fb, __local const Sphere *spheres_l)
 {
 	const int x = get_global_id(0);
 	const int y = get_global_id(1);
@@ -308,9 +316,7 @@ kernel void raytracer(__global Sphere *spheres, int numspheres, __global const C
 		}
 	}
 	
-	pixel = pixel / samples2;
+	pixel = clamp(pixel / samples2, 0.f, 255.f);
 	
-	fb[(y * width + x)].r = convert_uchar_sat(pixel.x * 256);
-	fb[(y * width + x)].g = convert_uchar_sat(pixel.y * 256);
-	fb[(y * width + x)].b = convert_uchar_sat(pixel.z * 256);
+	write_imagef(fb, (int2)(x, y), (float4)(pixel.x, pixel.y, pixel.z, 0.f));
 }

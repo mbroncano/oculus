@@ -27,6 +27,7 @@ Sphere spheres[] = {
 	(Sphere) {(Vector) {50.f, 40.8f, -1e4f + 270.f}, 1e4f,	(Material) {Diffuse, (Vector){.0f, .0f, .0f}, 0.f}},		// front
 };
 int numspheres = sizeof(spheres) / sizeof(Sphere);
+GLuint textid;
 
 double wallclock() {
 	struct timeval t;
@@ -61,8 +62,14 @@ struct OpenCL {
 				std::cout << "[OpenCL] * Profile: " << p.getInfo<CL_PLATFORM_PROFILE>() << std::endl;
 				std::cout << "[OpenCL] * Extensions: " << p.getInfo<CL_PLATFORM_EXTENSIONS>() << std::endl;
 			}
+			
+			CGLContextObj glContext = CGLGetCurrentContext();
+			CGLShareGroupObj shareGroup = CGLGetShareGroup(glContext);
 
-			cl_context_properties properties[] = { CL_CONTEXT_PLATFORM, (cl_context_properties)(platforms[0])(), 0};
+			cl_context_properties properties[] = {
+				CL_CONTEXT_PROPERTY_USE_CGL_SHAREGROUP_APPLE, (cl_context_properties)shareGroup,
+				CL_CONTEXT_PLATFORM, (cl_context_properties)(platforms[0])(), 
+				0 };
 			context = Context(CL_DEVICE_TYPE_GPU, properties); 
 
 			devices = context.getInfo<CL_CONTEXT_DEVICES>();
@@ -79,6 +86,7 @@ struct OpenCL {
 				std::cout << "[OpenCL] * Local mem size: " << d.getInfo<CL_DEVICE_LOCAL_MEM_SIZE>() << std::endl;
 				std::cout << "[OpenCL] * Local mem size: " << d.getInfo<CL_DEVICE_LOCAL_MEM_SIZE>() << std::endl;
 				std::cout << "[OpenCL] * Work groups: " << d.getInfo<CL_DEVICE_MAX_WORK_GROUP_SIZE>() << std::endl;
+				std::cout << "[OpenCL] * Image support: " << d.getInfo<CL_DEVICE_IMAGE_SUPPORT>() << std::endl;
 			}
 			
 			queue = CommandQueue(context, devices[0], 0, &err);
@@ -107,7 +115,8 @@ struct OpenCL {
 			tick = wallclock();
 			try {
 				std::cout << "[OpenCL] Building kernel: " << filename << std::endl;
-				program.build();
+				program.build("-cl-strict-aliasing -cl-unsafe-math-optimizations -cl-finite-math-only");
+//				program.build("-Werror -cl-strict-aliasing -cl-unsafe-math-optimizations -cl-finite-math-only");
 			} catch (Error err) {
 				std::cerr << "[OpenCL] Error! " << std::endl;
 				std::cerr << "[OpenCL] Build Status: " << program.getBuildInfo<CL_PROGRAM_BUILD_STATUS>(devices[0]) << std::endl;
@@ -137,12 +146,18 @@ struct OpenCL {
 		}
 	}
 	
-	Buffer spheres_b, camera_b, fb_b;
+	Buffer spheres_b, camera_b;
+	ImageGL fb_b;
 	
 	void createBuffers() {
-		spheres_b = Buffer(context, CL_MEM_READ_ONLY, sizeof(Sphere) * numspheres);
-		camera_b = Buffer(context, CL_MEM_READ_ONLY, sizeof(Camera));
-		fb_b = Buffer(context, CL_MEM_WRITE_ONLY, sizeof(Pixel) * width * height);
+		try {
+			spheres_b = Buffer(context, CL_MEM_READ_ONLY, sizeof(Sphere) * numspheres);
+			camera_b = Buffer(context, CL_MEM_READ_ONLY, sizeof(Camera));
+			fb_b = ImageGL(context, CL_MEM_WRITE_ONLY, GL_TEXTURE_2D, 0, textid);
+		} catch (Error err) {
+			std::cerr << "[OpenCL] Error: " << err.what() << "(" << err.err() << ")" << std::endl;
+			exit(1);
+		}
 	}
 	
 	void executeKernel() {
@@ -150,10 +165,15 @@ struct OpenCL {
 		double tick;
 
 		try {
+			std::vector<Memory> glObjects;
+			glObjects.push_back(fb_b);
+			
 			tick = wallclock();
 		 	queue.enqueueWriteBuffer(spheres_b, CL_TRUE, 0, sizeof(Sphere) * numspheres, spheres);	
-		 	queue.enqueueWriteBuffer(camera_b, CL_TRUE, 0, sizeof(Camera), &camera);	
-			printf("[OpenCL] Write buffers: %.2f ms\n", 1000.f * (wallclock() - tick));
+		 	queue.enqueueWriteBuffer(camera_b, CL_TRUE, 0, sizeof(Camera), &camera);
+		
+			queue.enqueueAcquireGLObjects(&glObjects);
+			//printf("[OpenCL] Write buffers: %.2f ms\n", 1000.f * (wallclock() - tick));
 
 			tick = wallclock();
 			Event event;
@@ -161,24 +181,22 @@ struct OpenCL {
 			queue.enqueueNDRangeKernel(kernel, NullRange, global, NullRange, NULL, &event); 
 
 			event.wait();
-			printf("[OpenCL] Execution: %.2f ms\n", 1000.f * (wallclock() - tick));
+			//printf("[OpenCL] Execution: %.2f ms\n", 1000.f * (wallclock() - tick));
 
 			tick = wallclock();
-		 	queue.enqueueReadBuffer(fb_b, CL_TRUE, 0, sizeof(Pixel) * width * height, fb);
-			printf("[OpenCL] Read buffers: %.2fms\n", 1000.f * (wallclock() - tick));
+			queue.enqueueReleaseGLObjects(&glObjects);
+			//printf("[OpenCL] Read buffers: %.2fms\n", 1000.f * (wallclock() - tick));
 		}
 		catch (Error err) {
 			std::cerr << "[OpenCL] Error: " << err.what() << "(" << err.err() << ")" << std::endl;
 			exit(1);
 		}
-
 	}
 };
 
 OpenCL * openCL;
 
 // GLUT, OpenGL related functions
-GLuint textid;
 char label[256];
 int screen_w, screen_h;
 
@@ -232,15 +250,17 @@ void idle() {
 	float seconds = 1000.f * (wallclock() - tick);
 	sprintf(label, "size: (%d, %d), time: %0.3fms", openCL->width, openCL->height, seconds);	
 
-	glBindTexture(GL_TEXTURE_2D, textid);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, openCL->width, openCL->height, 0, GL_RGB, GL_UNSIGNED_BYTE, openCL->fb);
-
 	glutPostRedisplay();
 }
 
-void init(int argc, char **argv) {
+void createTexture() {
+	glBindTexture(GL_TEXTURE_2D, textid);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, openCL->width, openCL->height, 0, GL_RGB, GL_UNSIGNED_BYTE, 0);
+}
+
+void glInit(int argc, char **argv) {
 	glutInit(&argc, argv);
 	glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE | GLUT_ALPHA);
 	glutInitWindowSize(1024, 1024);
@@ -257,11 +277,14 @@ void init(int argc, char **argv) {
 }
 
 int main(int argc, char **argv) {	
+
+	glInit(argc, argv);
 	openCL = new OpenCL();
+	
+	createTexture();
 	openCL->createBuffers();
 	openCL->createKernel("raytracer.cl", "raytracer");
 
-	init(argc, argv);
 	glutMainLoop();
 	
 	delete openCL;
