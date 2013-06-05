@@ -8,7 +8,7 @@
 		"materials": [{
 			"name": "mirror",
 			"type": "specular",
-			"color": [0.9, 0.9, 0.9],
+			"color": [0.2, 0.9, 0.2],
 			"emission": 0.0
 		}, {
 			"name": "glass",
@@ -19,11 +19,6 @@
 			"name": "white",
 			"type": "diffuse",
 			"color": [0.75, 0.75, 0.75],
-			"emission": 0.0
-		}, {
-			"name": "black",
-			"type": "diffuse",
-			"color": [0.0, 0.0, 0.0],
 			"emission": 0.0
 		}, {
 			"name": "red",
@@ -67,40 +62,49 @@
 			"material": "glass"
 		}, {
 			"name": "floor",
-			"type": "sphere",
-			"center": [50.0, 10000, 81.6],
-			"radius": 10000,
+			"type": "triangle",
+			"points": [
+				[0.0, 0.0, 0.0],
+				[0.0, 0.0, 120.0],
+				[100.0, 0.0, 0.0]
+			],
 			"material": "mirror"
 		}, {
-			"name": "top",
-			"type": "sphere",
-			"center": [50.0, -9918.4, 81.6],
-			"radius": 10000,
+			"name": "ceiling",
+			"type": "triangle",
+			"points": [
+				[0.0, 81.6, 0.0],
+				[0.0, 81.6, 120.0],
+				[100.0, 81.6, 0.0]
+			],
 			"material": "white"
 		}, {
 			"name": "left",
-			"type": "sphere",
-			"center": [10001, 40.8, 81.6],
-			"radius": 10000,
+			"type": "triangle",
+			"points": [
+				[0.0, 0.0, 0.0],
+				[0.0, 81.6, 0.0],
+				[0.0, 0.0, 120.0]
+			],
 			"material": "red"
 		}, {
 			"name": "right",
-			"type": "sphere",
-			"center": [-9901, 40.8, 81.6],
-			"radius": 10000,
-			"material": "green"
+			"type": "triangle",
+			"points": [
+				[100.0, 0.0, 0.0],
+				[100.0, 81.6, 0.0],
+				[100.0, 0.0, 120.0]
+			],
+			"material": "blue"
 		}, {
 			"name": "back",
-			"type": "sphere",
-			"center": [50.0, 40.8, 10000],
-			"radius": 10000,
+			"type": "triangle",
+			"points": [
+				[0.0, 0.0, 0.0],
+				[0.0, 81.6, 0.0],
+				[100.0, 0.0, 0.0]
+			],
 			"material": "white"
-		}, {
-			"name": "front",
-			"type": "sphere",
-			"center": [50.0, 40.8, -9730],
-			"radius": 10000,
-			"material": "black"
 		}]
 	}
 }

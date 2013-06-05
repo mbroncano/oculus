@@ -440,7 +440,7 @@ void glInit(int argc, char **argv) {
 
 int main(int argc, char **argv) {
 	Scene *scene = new Scene();
-	scene->loadJson("scene.json");
+	scene->loadJson("scene_t.json");
 	
 	glInit(argc, argv);
 	openCL = new OpenCL();
