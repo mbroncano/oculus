@@ -12,20 +12,23 @@
 using namespace cl;
 
 #include "geometry.h"
+#include "libjson/libjson.h"
 
 Camera camera = (Camera) {(Vector) {50.f, 45.f, 205.6f},  (Vector) {50.f, 45.f - 0.042612f, 204.6f}};
-Sphere spheres[] = {
-	(Sphere) {(Vector) {27.f, 16.5f, 47.f}, 16.5f,			(Material) {Specular, (Vector){.2f, .9f, .2f}, 0.f}},	// mirror
-	(Sphere) {(Vector) {73.f, 16.5f, 78.f}, 16.5f,			(Material) {Refractive, (Vector){.9f, .9f, .9f}, 0.f}},		// glass
-	(Sphere) {(Vector) {50.f, 66.6f, 81.6f}, 7.f,			(Material) {Diffuse, (Vector){.9f, .9f, .9f}, 12.f}},		// light
-	(Sphere) {(Vector) {50.f, -1e4f + 81.6f, 81.6f}, 1e4f,	(Material) {Diffuse, (Vector){.75f, .75f, .75f}, 0.f}},		// top
-	(Sphere) {(Vector) {50.f, 1e4f, 81.6f}, 1e4f,			(Material) {Diffuse, (Vector){.75f, .75f, .75f}, 0.f}},		// bottom
-	(Sphere) {(Vector) {1e4f + 1.f, 40.8f, 81.6f}, 1e4f,	(Material) {Diffuse, (Vector){.75f, .25f, .25f}, 0.f}},		// left
-	(Sphere) {(Vector) {-1e4f + 99.f, 40.8f, 81.6f}, 1e4f,	(Material) {Diffuse, (Vector){.25f, .25f, .75f}, 0.f}},		// right
-	(Sphere) {(Vector) {50.f, 40.8f, 1e4f}, 1e4f,			(Material) {Diffuse, (Vector){.75f, .75f, .75f}, 0.f}},		// back
-	(Sphere) {(Vector) {50.f, 40.8f, -1e4f + 270.f}, 1e4f,	(Material) {Diffuse, (Vector){.0, .0f, .0f}, 0.f}},		// front
+Primitive primitives[] = {
+//	{(Sphere) {(Vector) {27.f, 16.5f, 47.f}, 16.5f},			(Material) {Specular, (Vector){.2f, .9f, .2f}, 0.f}, sphere},
+	{(Sphere) {(Vector) {27.f, 16.5f, 47.f}, 16.5f},			(Material) {Specular, (Vector){.2f, .9f, .2f}, 0.f}, sphere},	// mirror
+	{(Sphere) {(Vector) {73.f, 16.5f, 78.f}, 16.5f},			(Material) {Refractive, (Vector){.9f, .9f, .9f}, 0.f}, sphere},		// glass
+	{(Sphere) {(Vector) {50.f, 66.6f, 81.6f}, 7.f},				(Material) {Diffuse, (Vector){.9f, .9f, .9f}, 12.f}, sphere},		// light
+	{(Sphere) {(Vector) {50.f, -1e4f + 81.6f, 81.6f}, 1e4f},	(Material) {Diffuse, (Vector){.75f, .75f, .75f}, 0.f}, sphere},		// top
+	{(Sphere) {(Vector) {50.f, 1e4f, 81.6f}, 1e4f},			(Material) {Diffuse, (Vector){.75f, .75f, .75f}, 0.f}, sphere},		// bottom
+	{(Sphere) {(Vector) {1e4f + 1.f, 40.8f, 81.6f}, 1e4f},		(Material) {Diffuse, (Vector){.75f, .25f, .25f}, 0.f}, sphere},		// left
+	{(Sphere) {(Vector) {-1e4f + 99.f, 40.8f, 81.6f}, 1e4f},	(Material) {Diffuse, (Vector){.25f, .25f, .75f}, 0.f}, sphere},		// right
+	{(Sphere) {(Vector) {50.f, 40.8f, 1e4f}, 1e4f},				(Material) {Diffuse, (Vector){.75f, .75f, .75f}, 0.f}, sphere},		// back
+	{(Sphere) {(Vector) {50.f, 40.8f, -1e4f + 270.f}, 1e4f},	(Material) {Diffuse, (Vector){.0, .0f, .0f}, 0.f}, sphere},		// front
 };
-int numspheres = sizeof(spheres) / sizeof(Sphere);
+
+int numprimitives = sizeof(primitives) / sizeof(Primitive);
 GLuint textid;
 
 double wallclock() {
@@ -34,6 +37,25 @@ double wallclock() {
 
 	return t.tv_sec + t.tv_usec / 1000000.0;
 }
+
+struct Scene {
+	Camera camera;
+	std::vector<Material *> metarials;
+	std::vector<Primitive *> primitives;
+
+	void loadJson(const char *f) {
+		std::string filename(f);
+		std::ifstream jsonFile(filename.c_str());
+		std::string jsonString(std::istreambuf_iterator<char>(jsonFile), (std::istreambuf_iterator<char>()));
+	
+		JSONNODE *n = json_parse(jsonString.c_str());
+	
+	
+	
+		json_delete(n);
+	}
+};
+
 
 struct OpenCL {
 
@@ -87,7 +109,6 @@ struct OpenCL {
 				std::cout << "[OpenCL] * Extensions: " << d.getInfo<CL_DEVICE_EXTENSIONS>() << std::endl;
 				std::cout << "[OpenCL] * Compute units: " << d.getInfo<CL_DEVICE_MAX_COMPUTE_UNITS>() << std::endl;
 				std::cout << "[OpenCL] * Global mem size: " << d.getInfo<CL_DEVICE_GLOBAL_MEM_SIZE>() << std::endl;
-				std::cout << "[OpenCL] * Local mem size: " << d.getInfo<CL_DEVICE_LOCAL_MEM_SIZE>() << std::endl;
 				std::cout << "[OpenCL] * Local mem size: " << d.getInfo<CL_DEVICE_LOCAL_MEM_SIZE>() << std::endl;
 				std::cout << "[OpenCL] * Work groups: " << d.getInfo<CL_DEVICE_MAX_WORK_GROUP_SIZE>() << std::endl;
 				std::cout << "[OpenCL] * Image support: " << d.getInfo<CL_DEVICE_IMAGE_SUPPORT>() << std::endl;
@@ -154,7 +175,7 @@ struct OpenCL {
 	
 	void createBuffers() {
 		try {
-			spheres_b = Buffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(Sphere) * numspheres, spheres);
+			spheres_b = Buffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(Primitive) * numprimitives, primitives);
 			camera_b = Buffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(Camera), &camera);
 			
 			// HACK: initializes buffer, as CL_MEM_ALLOC_HOST_PTR doesn't seem to do so
@@ -184,9 +205,9 @@ struct OpenCL {
 
 		try {
 			kernel.setArg(0, spheres_b);
-			kernel.setArg(1, numspheres);
+			kernel.setArg(1, numprimitives);
 			kernel.setArg(2, camera_b);
-			kernel.setArg(3, sizeof(Sphere) * numspheres, NULL);
+			kernel.setArg(3, sizeof(Primitive) * numprimitives, NULL);
 
 			random_state_t seed = {random(), random()};
 			kernel.setArg(4, seed);

@@ -1,0 +1,70 @@
+{
+	"scene": {
+		"camera": {
+			"origin": [50.0, 45.0, 205.6],
+			"target": [50.0, 44.957388, 204.6]
+		},
+
+		"materials": [{
+			"name": "mirror",
+			"type": "specular",
+			"color": [0.2, 0.9, 0.2],
+			"emission": 0.0
+		}, {
+			"name": "glass",
+			"type": "refractive",
+			"color": [0.9, 0.9, 0.9],
+			"emission": 0.0
+		}, {
+			"name": "white",
+			"type": "diffuse",
+			"color": [0.75, 0.75, 0.75],
+			"emission": 0.0
+		}, {
+			"name": "red",
+			"type": "diffuse",
+			"color": [0.75, 0.75, 0.75],
+			"emission": 0.0
+		}, {
+			"name": "green",
+			"type": "diffuse",
+			"color": [0.75, 0.75, 0.75],
+			"emission": 0.0
+		}, {
+			"name": "blue",
+			"type": "diffuse",
+			"color": [0.75, 0.75, 0.75],
+			"emission": 0.0
+		}, {
+			"name": "light",
+			"type": "diffuse",
+			"color": [0.9, 0.9, 0.9],
+			"emission": 12.0
+		}],
+
+		"primitives": [{
+			"name": "mirror ball",
+			"type": "sphere",
+			"center": [27.0, 16.5, 47.0],
+			"radius": 16.5,
+			"material": "specular"
+		}, {
+			"name": "glass ball",
+			"type": "sphere",
+			"center": [73.0, 16.5, 78.0],
+			"radius": 16.5,
+			"material": "glass"
+		}, {
+			"name": "floor",
+			"type": "triangle",
+			"points": [
+				[70.0, 0.0, 0.0],
+				[0.0, 0.0, 120.0],
+				[100.0, 0.0, 0.0]
+			],
+			"material": "white"
+		}
+
+		]
+	}
+}
