@@ -8,7 +8,7 @@
 		"materials": [{
 			"name": "mirror",
 			"type": "specular",
-			"color": [0.2, 0.9, 0.2],
+			"color": [0.9, 0.9, 0.9],
 			"emission": 0.0
 		}, {
 			"name": "glass",
@@ -21,19 +21,24 @@
 			"color": [0.75, 0.75, 0.75],
 			"emission": 0.0
 		}, {
+			"name": "black",
+			"type": "diffuse",
+			"color": [0.0, 0.0, 0.0],
+			"emission": 0.0
+		}, {
 			"name": "red",
 			"type": "diffuse",
-			"color": [0.75, 0.75, 0.75],
+			"color": [0.75, 0.25, 0.25],
 			"emission": 0.0
 		}, {
 			"name": "green",
 			"type": "diffuse",
-			"color": [0.75, 0.75, 0.75],
+			"color": [0.25, 0.75, 0.25],
 			"emission": 0.0
 		}, {
 			"name": "blue",
 			"type": "diffuse",
-			"color": [0.75, 0.75, 0.75],
+			"color": [0.25, 0.25, 0.75],
 			"emission": 0.0
 		}, {
 			"name": "light",
@@ -43,11 +48,17 @@
 		}],
 
 		"primitives": [{
+			"name": "light ball",
+			"type": "sphere",
+			"center": [50.0, 66.6, 81.6],
+			"radius": 7.0,
+			"material": "light"
+		}, {
 			"name": "mirror ball",
 			"type": "sphere",
 			"center": [27.0, 16.5, 47.0],
 			"radius": 16.5,
-			"material": "specular"
+			"material": "mirror"
 		}, {
 			"name": "glass ball",
 			"type": "sphere",
@@ -56,15 +67,40 @@
 			"material": "glass"
 		}, {
 			"name": "floor",
-			"type": "triangle",
-			"points": [
-				[70.0, 0.0, 0.0],
-				[0.0, 0.0, 120.0],
-				[100.0, 0.0, 0.0]
-			],
+			"type": "sphere",
+			"center": [50.0, 10000, 81.6],
+			"radius": 10000,
+			"material": "mirror"
+		}, {
+			"name": "top",
+			"type": "sphere",
+			"center": [50.0, -9918.4, 81.6],
+			"radius": 10000,
 			"material": "white"
-		}
-
-		]
+		}, {
+			"name": "left",
+			"type": "sphere",
+			"center": [10001, 40.8, 81.6],
+			"radius": 10000,
+			"material": "red"
+		}, {
+			"name": "right",
+			"type": "sphere",
+			"center": [-9901, 40.8, 81.6],
+			"radius": 10000,
+			"material": "blue"
+		}, {
+			"name": "back",
+			"type": "sphere",
+			"center": [50.0, 40.8, 10000],
+			"radius": 10000,
+			"material": "white"
+		}, {
+			"name": "front",
+			"type": "sphere",
+			"center": [50.0, 40.8, -9730],
+			"radius": 10000,
+			"material": "black"
+		}]
 	}
 }

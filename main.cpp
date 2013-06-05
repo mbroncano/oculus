@@ -5,30 +5,32 @@
 #include <cstdlib>
 #include <iostream>
 #include <string>
+#include <map>
 #include <fstream>
 #include <sys/time.h>
 #include <GLUT/glut.h>
+#include <exception>
+#include <algorithm>
+#include "parson/parson.h"
 
 using namespace cl;
 
 #include "geometry.h"
-#include "libjson/libjson.h"
 
-Camera camera = (Camera) {(Vector) {50.f, 45.f, 205.6f},  (Vector) {50.f, 45.f - 0.042612f, 204.6f}};
+//Camera camera = (Camera) {(Vector) {50.f, 45.f, 205.6f},  (Vector) {50.f, 45.f - 0.042612f, 204.6f}};
 Primitive primitives[] = {
-//	{(Sphere) {(Vector) {27.f, 16.5f, 47.f}, 16.5f},			(Material) {Specular, (Vector){.2f, .9f, .2f}, 0.f}, sphere},
 	{(Sphere) {(Vector) {27.f, 16.5f, 47.f}, 16.5f},			(Material) {Specular, (Vector){.2f, .9f, .2f}, 0.f}, sphere},	// mirror
 	{(Sphere) {(Vector) {73.f, 16.5f, 78.f}, 16.5f},			(Material) {Refractive, (Vector){.9f, .9f, .9f}, 0.f}, sphere},		// glass
 	{(Sphere) {(Vector) {50.f, 66.6f, 81.6f}, 7.f},				(Material) {Diffuse, (Vector){.9f, .9f, .9f}, 12.f}, sphere},		// light
 	{(Sphere) {(Vector) {50.f, -1e4f + 81.6f, 81.6f}, 1e4f},	(Material) {Diffuse, (Vector){.75f, .75f, .75f}, 0.f}, sphere},		// top
-	{(Sphere) {(Vector) {50.f, 1e4f, 81.6f}, 1e4f},			(Material) {Diffuse, (Vector){.75f, .75f, .75f}, 0.f}, sphere},		// bottom
+	{(Sphere) {(Vector) {50.f, 1e4f, 81.6f}, 1e4f},				(Material) {Diffuse, (Vector){.75f, .75f, .75f}, 0.f}, sphere},		// bottom
 	{(Sphere) {(Vector) {1e4f + 1.f, 40.8f, 81.6f}, 1e4f},		(Material) {Diffuse, (Vector){.75f, .25f, .25f}, 0.f}, sphere},		// left
 	{(Sphere) {(Vector) {-1e4f + 99.f, 40.8f, 81.6f}, 1e4f},	(Material) {Diffuse, (Vector){.25f, .25f, .75f}, 0.f}, sphere},		// right
 	{(Sphere) {(Vector) {50.f, 40.8f, 1e4f}, 1e4f},				(Material) {Diffuse, (Vector){.75f, .75f, .75f}, 0.f}, sphere},		// back
 	{(Sphere) {(Vector) {50.f, 40.8f, -1e4f + 270.f}, 1e4f},	(Material) {Diffuse, (Vector){.0, .0f, .0f}, 0.f}, sphere},		// front
 };
 
-int numprimitives = sizeof(primitives) / sizeof(Primitive);
+//int numprimitives = sizeof(primitives) / sizeof(Primitive);
 GLuint textid;
 
 double wallclock() {
@@ -40,25 +42,118 @@ double wallclock() {
 
 struct Scene {
 	Camera camera;
-	std::vector<Material *> metarials;
-	std::vector<Primitive *> primitives;
+	std::map<std::string, Material> material_map;
+	std::vector<Primitive> primitive_vector;
+
+	Vector getVector(JSON_Array *vector_array) {
+		if (json_array_get_count(vector_array) != 3) {
+			throw "reading vector ";
+		}
+		Vector v;
+		for (int i = 0; i < 3; i ++)
+			v.s[i] = json_array_get_number(vector_array, i); 
+
+		return v;
+	}
 
 	void loadJson(const char *f) {
-		std::string filename(f);
-		std::ifstream jsonFile(filename.c_str());
-		std::string jsonString(std::istreambuf_iterator<char>(jsonFile), (std::istreambuf_iterator<char>()));
-	
-		JSONNODE *n = json_parse(jsonString.c_str());
-	
-	
-	
-		json_delete(n);
+		try {
+			JSON_Value *_root = json_parse_file(f);
+			if (json_value_get_type(_root) != JSONObject) {
+				throw "missing root";
+		    }
+		
+			JSON_Object *_scene = json_object_get_object(json_value_get_object(_root), "scene");
+			if(!_scene) {
+				throw "missing scene";
+			}
+			
+			camera.o = getVector(json_object_dotget_array(_scene, "camera.origin"));
+			camera.t = getVector(json_object_dotget_array(_scene, "camera.target"));
+			
+			JSON_Array *_materials = json_object_get_array(_scene, "materials");
+			if (!_materials) {
+				throw "missing materials";
+			}
+
+			for(int i = 0; i < json_array_get_count(_materials); i ++) {
+				JSON_Object *_material = json_array_get_object(_materials, i);
+				std::string name = json_object_get_string(_material, "name");
+
+				Material material;
+				
+				std::string type = json_object_get_string(_material, "type");
+				if (type == "diffuse") {
+					material.s = Diffuse;
+				} else if (type == "specular") {
+					material.s = Specular;
+				} else if (type == "refractive") {
+					material.s = Refractive;
+				} else {
+					throw "uknown material type";
+				}
+				
+				material.c = getVector(json_object_get_array(_material, "color"));
+				material.e = json_object_get_number(_material, "emission"); 
+
+				material_map[name] = material;
+			}
+			
+			JSON_Array *_primitives = json_object_get_array(_scene, "primitives");
+			if (!_primitives) {
+				throw "missing primitives";
+			}
+
+			for(int i = 0; i < json_array_get_count(_primitives); i ++) {
+				JSON_Object *_primitive = json_array_get_object(_primitives, i);
+				std::string name = json_object_get_string(_primitive, "name");
+
+				Primitive primitive;
+				
+				std::string type = json_object_get_string(_primitive, "type");
+				if (type == "sphere") {
+					primitive.t = sphere;
+					primitive.sphere.c = getVector(json_object_get_array(_primitive, "center"));
+					primitive.sphere.r =json_object_get_number(_primitive, "radius");
+				} else if (type == "triangle") {
+					primitive.t = triangle;
+					JSON_Array *_points = json_object_get_array(_primitive, "points");
+					for(int j = 0; j < json_array_get_count(_points); j ++) {
+						JSON_Object *_point = json_array_get_object(_points, j);
+						primitive.triangle.p[j] = getVector(json_array_get_array(_points, j));
+
+						std::cout << "p" << j << " ["
+									<< primitive.triangle.p[j].s[0] << ", "
+									<< primitive.triangle.p[j].s[1] << ", "
+									<< primitive.triangle.p[j].s[2] << "]" << std::endl;
+					}
+					
+				} else {
+					throw "unknown primitive type";
+				};
+
+				std::string mat_string = json_object_get_string(_primitive, "material");
+				Material material = material_map[mat_string];
+				/*if (material) {
+					std::cout << mat_string;
+					throw "material for primitive not found";
+				}*/
+				primitive.m = material;
+
+				primitive_vector.push_back(primitive);
+			}
+			
+			json_value_free(_root);
+		} catch (const char *e) {
+			std::cout << "[Scene] Exception: " << e << std::endl;
+			exit(1);
+		}
 	}
+	
 };
 
 
 struct OpenCL {
-
 	std::vector<Platform> platforms;
 	std::vector<Device> devices;
 	Context context;
@@ -69,6 +164,8 @@ struct OpenCL {
 	int height;
 	
 	int samples;
+	
+	Scene *scene;
 
 	
 	OpenCL() {
@@ -121,7 +218,7 @@ struct OpenCL {
 			exit(1);
 		}
 		
-		width = height = 1024;
+		width = height = 512;
 	}
 	
 	void createKernel(const char *f, const char *k) {
@@ -175,8 +272,9 @@ struct OpenCL {
 	
 	void createBuffers() {
 		try {
-			spheres_b = Buffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(Primitive) * numprimitives, primitives);
-			camera_b = Buffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(Camera), &camera);
+			spheres_b = Buffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(Primitive) * scene->primitive_vector.size(), &scene->primitive_vector[0]);
+//			spheres_b = Buffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(Primitive) * numprimitives, &primitives);
+			camera_b = Buffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(Camera), &scene->camera);
 			
 			// HACK: initializes buffer, as CL_MEM_ALLOC_HOST_PTR doesn't seem to do so
 			Vector *frame = new Vector[width * height];
@@ -205,9 +303,9 @@ struct OpenCL {
 
 		try {
 			kernel.setArg(0, spheres_b);
-			kernel.setArg(1, numprimitives);
+			kernel.setArg(1, scene->primitive_vector.size());
 			kernel.setArg(2, camera_b);
-			kernel.setArg(3, sizeof(Primitive) * numprimitives, NULL);
+			kernel.setArg(3, sizeof(Primitive) * scene->primitive_vector.size(), NULL);
 
 			random_state_t seed = {random(), random()};
 			kernel.setArg(4, seed);
@@ -341,8 +439,12 @@ void glInit(int argc, char **argv) {
 }
 
 int main(int argc, char **argv) {
+	Scene *scene = new Scene();
+	scene->loadJson("scene.json");
+	
 	glInit(argc, argv);
 	openCL = new OpenCL();
+	openCL->scene = scene;
 	
 	createTexture();
 	openCL->createBuffers();

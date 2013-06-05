@@ -21,7 +21,7 @@ static float triangle_distance(__local const Triangle *t, const Ray *r)
 
 	const Vector q = cross(o, edge[0]);
 	const float v = dot(q, r->d) / det1;
-	if (v < 0.f || (u + v) > 1.f)
+	if (v < 0.f || (0.f + v) > 1.f) // H0XX !!!
 		return FLT_MAX;
 
 	return dot(q, edge[1]) / det1;
@@ -34,7 +34,14 @@ inline Vector triangle_surfacepoint(__local const Triangle *t, const float u, co
 	return t->p[0] + edge[0] * u + edge[1] * v;
 }
 
+inline Vector triangle_normal(__local const Triangle *t, const Vector hit_point)
+{
+	const Vector edge[2] = { (t->p[1] - t->p[0]), (t->p[2] - t->p[0]) };
 
+	return normalize(cross(edge[0], edge[1]));
+}
+
+/*
 inline textcoord_t triangle_textcoords(__local const Triangle *t, const Vector hit_point)
 {
 	const Vector edge[2] = { (t->p[1] - t->p[0]), (t->p[2] - t->p[0]) };
@@ -43,6 +50,6 @@ inline textcoord_t triangle_textcoords(__local const Triangle *t, const Vector h
 	
 	return uv / len2;
 }
-
+*/
 
 #endif

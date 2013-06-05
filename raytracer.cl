@@ -20,6 +20,18 @@ static Vector primitive_surfacepoint(__local const Primitive *p, const float a, 
 {
 	if (p->t == sphere) {
 		return sphere_surfacepoint(&p->sphere, a, b);
+	} else if (p->t == triangle) {
+		return triangle_surfacepoint(&p->triangle, a, b);
+	}
+	return vec_zero;
+}
+
+static Vector primitive_normal(__local const Primitive *p, const Vector hit_point)
+{
+	if (p->t == sphere) {
+		return sphere_normal(&p->sphere, hit_point);
+	} else if(p->t == triangle) {
+		return triangle_normal(&p->triangle, hit_point);
 	}
 	return vec_zero;
 }
@@ -73,16 +85,6 @@ static Vector scene_illumination(
 	return illu;
 }
 
-inline Vector primitive_normal(__local const Primitive *p, Vector hit_point)
-{
-	if (p->t == sphere) {
-		return normalize(hit_point - p->sphere.c);
-	}
-	return vec_zero;
-}
-
-
-
 static Vector scene_sample(
 	__local const Primitive *primitives,
 	const int numprimitives,
@@ -134,7 +136,7 @@ static Vector scene_sample(
 			
 			ray_bounce(&r, hit_point, normal, rnd);
 		}
-		 else if (s->m.s == Specular) {
+		else if (s->m.s == Specular) {
 			bounce = true;
 			illum = illum * s->m.c;
 			
@@ -166,8 +168,7 @@ static Vector scene_sample(
 				if (randomf(rnd) < fres) {
 					ray_reflection(&r, hit_point, normal, cos_i);
 				} else {
-					r.o = hit_point - normal * EPSILON;
-					r.d = normalize(n * r.d - (n * cos_i + cos_t) * normal);
+					ray_refraction(&r, hit_point, normal, cos_i, cos_t, n);
 				}
 			}
 		}
@@ -193,7 +194,7 @@ static Ray camera_genray( __global const Camera *camera, float x, float y, int w
 }
 
 kernel void raytracer(
-	__global Primitive *spheres, 
+	__global Primitive *primitives, 
 	int numprimitives,
 	__global const Camera *camera,
 	__local const Primitive *primitives_l, 
@@ -217,7 +218,7 @@ kernel void raytracer(
 	seed ^= (random_state_t)(x, y);
 
 	// copy global to local memory
-	event_t event = async_work_group_copy((__local char *)primitives_l, (__global char *)spheres, sizeof(Primitive)*numprimitives, 0);
+	event_t event = async_work_group_copy((__local char *)primitives_l, (__global char *)primitives, sizeof(Primitive)*numprimitives, 0);
 	wait_group_events(1, &event);
 
 	// antialiasing

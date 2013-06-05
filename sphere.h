@@ -36,7 +36,7 @@ inline Vector sphere_surfacepoint(__local const Sphere *s, const float u, const 
 	return s->c + s->r * (Vector)(x, y, x);
 }
 
-inline Vector sphere_normal(__local const Sphere *s, Vector hit_point)
+inline Vector sphere_normal(__local const Sphere *s, const Vector hit_point)
 {
 	return normalize(hit_point - s->c);
 }
