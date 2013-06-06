@@ -17,20 +17,6 @@ using namespace cl;
 
 #include "geometry.h"
 
-//Camera camera = (Camera) {(Vector) {50.f, 45.f, 205.6f},  (Vector) {50.f, 45.f - 0.042612f, 204.6f}};
-Primitive primitives[] = {
-	{(Sphere) {(Vector) {27.f, 16.5f, 47.f}, 16.5f},			(Material) {Specular, (Vector){.2f, .9f, .2f}, 0.f}, sphere},	// mirror
-	{(Sphere) {(Vector) {73.f, 16.5f, 78.f}, 16.5f},			(Material) {Refractive, (Vector){.9f, .9f, .9f}, 0.f}, sphere},		// glass
-	{(Sphere) {(Vector) {50.f, 66.6f, 81.6f}, 7.f},				(Material) {Diffuse, (Vector){.9f, .9f, .9f}, 12.f}, sphere},		// light
-	{(Sphere) {(Vector) {50.f, -1e4f + 81.6f, 81.6f}, 1e4f},	(Material) {Diffuse, (Vector){.75f, .75f, .75f}, 0.f}, sphere},		// top
-	{(Sphere) {(Vector) {50.f, 1e4f, 81.6f}, 1e4f},				(Material) {Diffuse, (Vector){.75f, .75f, .75f}, 0.f}, sphere},		// bottom
-	{(Sphere) {(Vector) {1e4f + 1.f, 40.8f, 81.6f}, 1e4f},		(Material) {Diffuse, (Vector){.75f, .25f, .25f}, 0.f}, sphere},		// left
-	{(Sphere) {(Vector) {-1e4f + 99.f, 40.8f, 81.6f}, 1e4f},	(Material) {Diffuse, (Vector){.25f, .25f, .75f}, 0.f}, sphere},		// right
-	{(Sphere) {(Vector) {50.f, 40.8f, 1e4f}, 1e4f},				(Material) {Diffuse, (Vector){.75f, .75f, .75f}, 0.f}, sphere},		// back
-	{(Sphere) {(Vector) {50.f, 40.8f, -1e4f + 270.f}, 1e4f},	(Material) {Diffuse, (Vector){.0, .0f, .0f}, 0.f}, sphere},		// front
-};
-
-//int numprimitives = sizeof(primitives) / sizeof(Primitive);
 GLuint textid;
 
 double wallclock() {
@@ -193,7 +179,7 @@ struct OpenCL {
 #endif
 				CL_CONTEXT_PLATFORM, (cl_context_properties)(platforms[0])(), 
 				0 };
-			context = Context(CL_DEVICE_TYPE_CPU, properties); 
+			context = Context(CL_DEVICE_TYPE_GPU, properties); 
 
 			devices = context.getInfo<CL_CONTEXT_DEVICES>();
 			std::cout << "[OpenCL] Number of devices: " << devices.size() << std::endl;
@@ -218,7 +204,7 @@ struct OpenCL {
 			exit(1);
 		}
 		
-		width = height = 512;
+		width = height = 1024;
 	}
 	
 	void createKernel(const char *f, const char *k) {
@@ -277,6 +263,7 @@ struct OpenCL {
 			camera_b = Buffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(Camera), &scene->camera);
 			
 			// HACK: initializes buffer, as CL_MEM_ALLOC_HOST_PTR doesn't seem to do so
+			// TODO: do this in opencl
 			Vector *frame = new Vector[width * height];
 			frame_b = Buffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, width * height * sizeof(Vector), frame);
 			delete frame;
@@ -289,7 +276,7 @@ struct OpenCL {
 			rgb = new Pixel[width * height];
 			rgb_b = Buffer(context, CL_MEM_READ_WRITE, width * height * sizeof(Vector));
 #endif
-			samples = 1;
+			samples = 0;
 			
 		} catch (Error err) {
 			std::cerr << "[OpenCL] Error: " << err.what() << "(" << err.err() << ")" << std::endl;
@@ -316,7 +303,7 @@ struct OpenCL {
 #else
 			kernel.setArg(6, rgb_b);
 #endif
-			kernel.setArg(7, samples);
+			kernel.setArg(7, samples++);
 
 			tick = wallclock();
 #ifdef INTEROP
@@ -331,8 +318,6 @@ struct OpenCL {
 
 			event.wait();
 			//printf("[OpenCL] Execution: %.2f ms\n", 1000.f * (wallclock() - tick));
-			
-			samples ++;
 
 			tick = wallclock();
 #ifdef INTEROP
@@ -419,7 +404,7 @@ void createTexture() {
 	glBindTexture(GL_TEXTURE_2D, textid);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, openCL->width, openCL->height, 0, GL_RGB, GL_UNSIGNED_BYTE, 0);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, openCL->width, openCL->height, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
 }
 
 void glInit(int argc, char **argv) {
@@ -440,7 +425,7 @@ void glInit(int argc, char **argv) {
 
 int main(int argc, char **argv) {
 	Scene *scene = new Scene();
-	scene->loadJson("scene_t.json");
+	scene->loadJson("scene.json");
 	
 	glInit(argc, argv);
 	openCL = new OpenCL();

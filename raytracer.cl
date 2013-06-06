@@ -6,6 +6,25 @@
 #include "random.h"
 #include "ray.h"
 
+static void dump_primitives(__local const Primitive *primitives, int num)
+{
+	for (int i = 0; i < num; i ++) {
+		__local const Primitive *p = primitives + i;
+		
+		if (p->t == sphere) {
+			printf("[%d] s: (%.2f, %.2f, %.2f), %.2f\n", i, p->sphere.c.x, p->sphere.c.y ,p->sphere.c.z, p->sphere.r);
+		} else if (p->t == triangle) {
+			Vector n = triangle_normal(&p->triangle, vec_zero);
+			printf("[%d] t: (%.2f, %.2f, %.2f), (%.2f, %.2f, %.2f), (%.2f, %.2f, %.2f), n[%.2f, %.2f, %.2f]\n", i, 
+			p->triangle.p[0].x, p->triangle.p[0].y, p->triangle.p[0].z,
+			p->triangle.p[1].x, p->triangle.p[1].y, p->triangle.p[1].z,
+			p->triangle.p[2].x, p->triangle.p[2].y, p->triangle.p[2].z,
+			n.x, n.y, n.z
+			);
+		}
+	}
+}
+
 static float primitive_distance(__local const Primitive *p, const Ray *r)
 {
 	if (p->t == sphere) {
@@ -82,6 +101,7 @@ static Vector scene_illumination(
 			}
 		}
 	}
+	
 	return illu;
 }
 
@@ -105,7 +125,7 @@ static Vector scene_sample(
 		if (distance == FLT_MAX) {
 			return sample;
 		}
-
+		
 		// Lights
 		if (s->m.e != 0.f) {
 			// HACK: only return full luminance when either hit by a primary ray or
@@ -115,7 +135,7 @@ static Vector scene_sample(
 			}
 			return sample;
 		} 
-		
+
 		bool leaving = false;
 		Vector hit_point = r.o + r.d * distance;
 		Vector normal = primitive_normal(s, hit_point);
@@ -221,6 +241,10 @@ kernel void raytracer(
 	event_t event = async_work_group_copy((__local char *)primitives_l, (__global char *)primitives, sizeof(Primitive)*numprimitives, 0);
 	wait_group_events(1, &event);
 
+	if (samples != 0 && x ==0 && y ==0) {
+		dump_primitives(primitives_l, numprimitives);
+	}
+
 	// antialiasing
 	float dx = x + randomf(&seed) - 0.5f;
 	float dy = y + randomf(&seed) - 0.5f;
@@ -235,11 +259,12 @@ kernel void raytracer(
 		const float k1 = samples;
 		const float k2 = 1.f / (samples + 1.f);
 		pixel = (frame[index] * k1 + pixel) * k2;
-	}	
+	}
 	frame[index] = pixel;
 	
 	// return RGBA image
-#ifdef INTEROP	
+#ifdef INTEROP
+	// it does the clamp by itself it seems
 	write_imagef(image, (int2)(x, y), (float4)(pixel.x, pixel.y, pixel.z, 0.f));
 #else
 	rgb[index].r = convert_uchar_sat(pixel.x * 256);

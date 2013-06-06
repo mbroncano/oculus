@@ -4,7 +4,7 @@
 #include "geometry.h"
 
 // Moller - Trumbore method
-static float triangle_distance(__local const Triangle *t, const Ray *r)
+inline float triangle_distance(__local const Triangle *t, const Ray *r)
 {
 	const Vector edge[2] = { (t->p[1] - t->p[0]), (t->p[2] - t->p[0]) };
 	
@@ -24,7 +24,8 @@ static float triangle_distance(__local const Triangle *t, const Ray *r)
 	if (v < 0.f || (0.f + v) > 1.f) // H0XX !!!
 		return FLT_MAX;
 
-	return dot(q, edge[1]) / det1;
+	float ret = dot(q, edge[1]) / det1;
+	return ret > 0.f ? ret : FLT_MAX;
 }
 
 inline Vector triangle_surfacepoint(__local const Triangle *t, const float u, const float v)
