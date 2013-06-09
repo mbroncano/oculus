@@ -6,6 +6,7 @@
 #include "random.h"
 #include "ray.h"
 
+#ifdef DEBUG
 static void dump_primitives(__local const Primitive *primitives, int num)
 {
 	for (int i = 0; i < num; i ++) {
@@ -24,6 +25,7 @@ static void dump_primitives(__local const Primitive *primitives, int num)
 		}
 	}
 }
+#endif
 
 static float primitive_distance(__local const Primitive *p, const Ray *r)
 {
@@ -68,6 +70,68 @@ static float scene_intersect(__local const Primitive *primitives, const int nump
 	return distance;
 }
 
+/*
+// by some strange reason this is slower than intersecting with all primitives ...
+static float scene_intersect_shadow(__local const Primitive *primitives, const int numprimitives, const Ray *s_ray, __local const Primitive *l)
+{
+	float d = primitive_distance(l, s_ray);
+	bool shadow = false;
+	for(int i = 0; i < numprimitives; i++) {
+		if ((primitives + i) == l) continue;
+		if (primitive_distance(primitives + i, s_ray) < d) {
+			shadow = true;
+			break;
+		}
+	}
+
+	return shadow ? FLT_MAX : d;
+}
+*/
+
+
+inline float kdiff_lambert(const Ray *i, const Ray *o, const Vector normal)
+{
+	return max(0.f, dot(i->d, normal));
+}
+
+// http://en.wikipedia.org/wiki/Blinn%E2%80%93Phong_shading_model
+inline float kspec_blinnphong(const Ray *i, const Ray *o, const Vector normal, const Vector t)
+{
+	const float nshiny = 4.f;
+	const Vector h = normalize(i->d + o->d);
+	
+	return pow(dot(normal, h), nshiny);
+}
+/*
+inline float kspec_gaussian(const Ray *i, const Ray *o, const Vector normal, const Vector t)
+{
+	const float m = 0.7f;
+	const Vector h = normalize(i->d + o->d);
+	float a = acos(dot(normal, h));
+	
+	return exp(-1.f * pow(a / m, 2));
+}
+
+inline float kspec_beckmann(const Ray *i, const Ray *o, const Vector normal, const Vector t)
+{
+	const float m = 0.7f;
+	const Vector h = normalize(i->d + o->d);
+	float a = acos(dot(normal, h));
+	float cos_a2 = cos(a) * cos(a);
+	float e = (1.f - cos_a2) / (cos_a2 * m * m);
+	
+	return exp(-1.f * e) / (PI * m * m * cos_a2 * cos_a2);
+}
+
+inline float kspec_heidrich_seidel(const Ray *i, const Ray *o, const Vector normal, const Vector t)
+{
+	const float ka = 1e3f;
+	const float a = dot(i->d, t);
+	const float b = dot(o->d, t);
+
+	return pow(sin(a)*sin(b) + cos(a)*cos(b), ka) * kspec_blinnphong(i, o, normal, t);
+}
+*/
 static Vector scene_illumination(
 	__local const Primitive *primitives,
 	const int numprimitives,
@@ -76,10 +140,13 @@ static Vector scene_illumination(
 	__local const Primitive *s,
 	const Ray *r,
 	const Vector hit_point,
-	const Vector normal
+	const Vector normal,
+	const float cos_i
 	)
 {
 	Vector illu = vec_zero;
+//	Vector tangent = primitive_tangent(s, hit_point);
+	Vector tangent = cross(normal, normalize(r->d + 2.f * cos_i * normal));
 	
 	for (int i = 0; i < numprimitives; i++) {
 		__local const Primitive *l = primitives + i;
@@ -90,19 +157,20 @@ static Vector scene_illumination(
 
 			__local Primitive *h;
 			float d = scene_intersect(primitives, numprimitives, &s_ray, &h);
-
 			if (h == l) {
 				Vector emission = l->m.c * l->m.e;
-				float lambert = max(0.f, dot(s_ray.d, normal));
-				float blinn = pow(dot(normalize(s_ray.d + r->d), normal), 64.f);
-				float attenuation = sqrt(d);
 
-				illu = illu + emission * (lambert + blinn) * 0.5f / attenuation;
+				// Phong illumination model http://en.wikipedia.org/wiki/Phong_reflection_model
+				float attenuation = 2.f * sqrt(d);
+				float kdiff = kdiff_lambert(&s_ray, r, normal);
+				float kspec = kspec_blinnphong(&s_ray, r, normal, tangent);
+
+				illu = illu + emission * (kdiff + kspec) / attenuation;
 			}
 		}
 	}
 	
-	return illu;
+	return illu + ambient;
 }
 
 static Vector scene_sample(
@@ -128,44 +196,49 @@ static Vector scene_sample(
 		
 		// Lights
 		if (s->m.e != 0.f) {
-			// HACK: only return full luminance when either hit by a primary ray or
+			// HACK?: only return full luminance when either hit by a primary ray or
 			// after a specular bounce, as diffuse already sampled it previously
-			if (bounce) { 
-				sample = sample + illum * s->m.e * s->m.c;
-			}
-			return sample;
+			return bounce ? (sample + illum * s->m.e * s->m.c) : sample;
 		} 
 
-		bool leaving = false;
+		// intersection
 		Vector hit_point = r.o + r.d * distance;
 		Vector normal = primitive_normal(s, hit_point);
+		
+		// correct normals, simt style
 		float cos_i = -1.f * dot(normal, normalize(r.d));
-		if (cos_i < 0.f) {
-			normal = normal * -1.f;
-			cos_i = cos_i * -1.f;
-			leaving = true;
-		}
+		float csign = sign(cos_i);
 
-		// BDRFs, TODO: move them to functions
-		if (s->m.s == Diffuse) {
+		normal = normal * csign;
+		cos_i = cos_i * csign;
+		bool leaving = (csign < 0.f);
+		Surface material = s->m.s;
+		
+		illum = illum * s->m.c;
+
+		// BRDFs, TODO: move them to functions
+		// Avoiding switch decreases 8% frame time!
+		if (material == Diffuse) {
 			bounce = false;
-			illum = illum * s->m.c;
-			
-			Vector light = scene_illumination(primitives, numprimitives, rnd, s, &r, hit_point, normal);
-			sample = sample + illum * (light + ambient);
-			
+		
+			sample = sample + illum * scene_illumination(primitives, numprimitives, rnd, s, &r, hit_point, normal, cos_i);
+		
 			ray_bounce(&r, hit_point, normal, rnd);
-		}
-		else if (s->m.s == Specular) {
-			bounce = true;
-			illum = illum * s->m.c;
-			
-			ray_reflection(&r, hit_point, normal, cos_i);
 		} 
-		else if (s->m.s == Refractive) {
+		else if (material == Metal) {
 			bounce = true;
-			illum = illum * s->m.c;
-			
+			sample = sample + illum * scene_illumination(primitives, numprimitives, rnd, s, &r, hit_point, normal, cos_i);
+
+			ray_reflection(&r, hit_point, normal, cos_i);
+		}
+		else if (material == Specular) {
+			bounce = true;
+		
+			ray_reflection(&r, hit_point, normal, cos_i);
+		}
+		else if (material == Dielectric) {
+			bounce = true;
+		
 			const float air = 1.f;
 			const float glass = 1.5f;
 
@@ -184,15 +257,18 @@ static Vector scene_sample(
 				float perp = pow((n1 * cos_i - n2 * cos_t) / (n1 * cos_i + n2 * cos_t), 2.f);
 				float para = pow((n2 * cos_i - n1 * cos_t) / (n2 * cos_i + n1 * cos_t), 2.f);
 				float fres = (perp + para) / 2.f;
-
+				
 				if (randomf(rnd) < fres) {
 					ray_reflection(&r, hit_point, normal, cos_i);
 				} else {
 					ray_refraction(&r, hit_point, normal, cos_i, cos_t, n);
 				}
 			}
-		}
+			
+		} 
+
 	}
+
 
 	return sample;
 }
@@ -212,6 +288,42 @@ static Ray camera_genray( __global const Camera *camera, float x, float y, int w
 	
 	return (Ray){camera->o, normalize(d + zoom * vx * fx + zoom * vy * fy)};
 }
+
+kernel void init_kernel(
+	__global Primitive *primitives, 
+	int numprimitives,
+	__global const Camera *camera,
+	__local const Primitive *primitives_l, 
+	random_state_t seed,
+	__global Ray *rays
+)
+{
+	// work items and size
+	const int x = get_global_id(0);
+	const int y = get_global_id(1);
+	const int width = get_global_size(0);
+	const int height = get_global_size(1);
+
+	// xor seed per work items
+	seed ^= (random_state_t)(x, y);
+
+	// copy global to local memory
+	event_t event = async_work_group_copy((__local char *)primitives_l, (__global char *)primitives, sizeof(Primitive)*numprimitives, 0);
+	wait_group_events(1, &event);
+
+	// stochastic supersampling
+	float dx = x + randomf(&seed) - 0.5f;
+	float dy = y + randomf(&seed) - 0.5f;
+
+	// generate primary ray
+	Ray ray = camera_genray(camera, dx, dy, width, height);
+	
+	// store the ray
+	unsigned int index = y * width + height;
+	rays[index] = ray;
+}
+
+
 
 kernel void raytracer(
 	__global Primitive *primitives, 
@@ -240,10 +352,11 @@ kernel void raytracer(
 	// copy global to local memory
 	event_t event = async_work_group_copy((__local char *)primitives_l, (__global char *)primitives, sizeof(Primitive)*numprimitives, 0);
 	wait_group_events(1, &event);
-
+#ifdef DEBUG
 	if (samples != 0 && x ==0 && y ==0) {
 		dump_primitives(primitives_l, numprimitives);
 	}
+#endif
 
 	// antialiasing
 	float dx = x + randomf(&seed) - 0.5f;

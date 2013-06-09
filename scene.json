@@ -17,7 +17,12 @@
 			"emission": 0.0
 		}, {
 			"name": "glass",
-			"type": "refractive",
+			"type": "dielectric",
+			"color": [0.9, 0.9, 0.9],
+			"emission": 0.0
+		}, {
+			"name": "steel",
+			"type": "metal",
 			"color": [0.9, 0.9, 0.9],
 			"emission": 0.0
 		}, {
@@ -41,6 +46,11 @@
 			"color": [0.25, 0.25, 0.75],
 			"emission": 0.0
 		}, {
+			"name": "magenta",
+			"type": "diffuse",
+			"color": [0.75, 0.25, 0.75],
+			"emission": 0.0
+		}, {
 			"name": "light",
 			"type": "diffuse",
 			"color": [0.9, 0.9, 0.9],
@@ -57,17 +67,11 @@
 			],
 			"material": "light"
 		}, {
-			"name": "mirror ball",
+			"name": "metal ball",
 			"type": "sphere",
-			"center": [27.0, 16.5, 47.0],
-			"radius": 16.5,
-			"material": "mirror"
-		}, {
-			"name": "glass ball",
-			"type": "sphere",
-			"center": [73.0, 16.5, 78.0],
-			"radius": 16.5,
-			"material": "glass"
+			"center": [50, 40, 50],
+			"radius": 25,
+			"material": "steel"
 		}, {
 			"name": "floor",
 			"type": "triangle",
@@ -76,7 +80,7 @@
 				[0.0, 0.0, 120.0],
 				[100.0, 0.0, 0.0]
 			],
-			"material": "dark mirror"
+			"material": "white"
 		}, {
 			"name": "ceiling",
 			"type": "triangle",
@@ -85,7 +89,7 @@
 				[0.0, 81.6, 120.0],
 				[100.0, 81.6, 0.0]
 			],
-			"material": "white"
+			"material": "magenta"
 		}, {
 			"name": "left",
 			"type": "triangle",
@@ -103,7 +107,7 @@
 				[100.0, 81.6, 0.0],
 				[100.0, 0.0, 120.0]
 			],
-			"material": "blue"
+			"material": "green"
 		}, {
 			"name": "back",
 			"type": "triangle",

@@ -77,7 +77,6 @@ typedef struct {
 	PrimitiveType t;
 } Primitive;
 
-typedef struct BVH;
 struct BVH {
 	Vector min;
 	Vector max;

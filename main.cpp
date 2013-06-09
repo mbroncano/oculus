@@ -107,11 +107,6 @@ struct Scene {
 					for(int j = 0; j < json_array_get_count(_points); j ++) {
 						JSON_Object *_point = json_array_get_object(_points, j);
 						primitive.triangle.p[j] = getVector(json_array_get_array(_points, j));
-
-						std::cout << "p" << j << " ["
-									<< primitive.triangle.p[j].s[0] << ", "
-									<< primitive.triangle.p[j].s[1] << ", "
-									<< primitive.triangle.p[j].s[2] << "]" << std::endl;
 					}
 					
 				} else {
@@ -138,49 +133,128 @@ struct Scene {
 	
 };
 
-
 struct OpenCL {
 	std::vector<Platform> platforms;
 	std::vector<Device> devices;
 	Context context;
-	Kernel kernel;
+	Program *program;
+	Kernel *initKernel;
+	Kernel *runKernel;
 	CommandQueue queue;
 
 	int width;
-	int height;	
-	int samples;	
+	int height;
+	int samples;
 	Scene *scene;
 	
 	GLuint textid;
-	
+	Buffer prim_b, camera_b, random_b, frame_b, ray_b;
+
+#ifdef INTEROP
+	ImageGL image_b;
+	std::vector<Memory> glObjects;
+#else
+	Pixel *rgb;
+	Buffer rgb_b;
+#endif
+
 
 	void platformDump(Platform p) {
 		std::cout 
-			<< "[OpenCL] Platform: " << p.getInfo<CL_PLATFORM_NAME>() << std::endl
-			<< "[OpenCL] * Vendor: " << p.getInfo<CL_PLATFORM_VENDOR>() << std::endl
-			<< "[OpenCL] * Version: " << p.getInfo<CL_PLATFORM_VERSION>() << std::endl
-			<< "[OpenCL] * Profile: " << p.getInfo<CL_PLATFORM_PROFILE>() << std::endl
-			<< "[OpenCL] * Extensions: " << p.getInfo<CL_PLATFORM_EXTENSIONS>() << std::endl;
+			<< "[OpenCL:"<< __FUNCTION__ << "]" << " Platform: " << p.getInfo<CL_PLATFORM_NAME>() << std::endl
+			<< "[OpenCL:"<< __FUNCTION__ << "]" << " * Vendor: " << p.getInfo<CL_PLATFORM_VENDOR>() << std::endl
+			<< "[OpenCL:"<< __FUNCTION__ << "]" << " * Version: " << p.getInfo<CL_PLATFORM_VERSION>() << std::endl
+			<< "[OpenCL:"<< __FUNCTION__ << "]" << " * Profile: " << p.getInfo<CL_PLATFORM_PROFILE>() << std::endl
+			<< "[OpenCL:"<< __FUNCTION__ << "]" << " * Extensions: " << p.getInfo<CL_PLATFORM_EXTENSIONS>() << std::endl;
 	}
 	
 	void deviceDump(Device d) {
 		std::cout
-			<< "[OpenCL] Device: " << d.getInfo<CL_DEVICE_NAME>() << std::endl
-			<< "[OpenCL] * Type: " << d.getInfo<CL_DEVICE_TYPE>() << std::endl
-			<< "[OpenCL] * Version: " << d.getInfo<CL_DEVICE_VERSION>() << std::endl
-			<< "[OpenCL] * Extensions: " << d.getInfo<CL_DEVICE_EXTENSIONS>() << std::endl
-			<< "[OpenCL] * Compute units: " << d.getInfo<CL_DEVICE_MAX_COMPUTE_UNITS>() << std::endl
-			<< "[OpenCL] * Global mem size: " << d.getInfo<CL_DEVICE_GLOBAL_MEM_SIZE>() << std::endl
-			<< "[OpenCL] * Local mem size: " << d.getInfo<CL_DEVICE_LOCAL_MEM_SIZE>() << std::endl
-			<< "[OpenCL] * Work groups: " << d.getInfo<CL_DEVICE_MAX_WORK_GROUP_SIZE>() << std::endl
-			<< "[OpenCL] * Image support: " << d.getInfo<CL_DEVICE_IMAGE_SUPPORT>() << std::endl;
+			<< "[OpenCL:"<< __FUNCTION__ << "]" << " Device: " << d.getInfo<CL_DEVICE_NAME>() << std::endl
+			<< "[OpenCL:"<< __FUNCTION__ << "]" << " * Type: " << d.getInfo<CL_DEVICE_TYPE>() << std::endl
+			<< "[OpenCL:"<< __FUNCTION__ << "]" << " * Version: " << d.getInfo<CL_DEVICE_VERSION>() << std::endl
+			<< "[OpenCL:"<< __FUNCTION__ << "]" << " * Extensions: " << d.getInfo<CL_DEVICE_EXTENSIONS>() << std::endl
+			<< "[OpenCL:"<< __FUNCTION__ << "]" << " * Compute units: " << d.getInfo<CL_DEVICE_MAX_COMPUTE_UNITS>() << std::endl
+			<< "[OpenCL:"<< __FUNCTION__ << "]" << " * Global mem size: " << d.getInfo<CL_DEVICE_GLOBAL_MEM_SIZE>() << std::endl
+			<< "[OpenCL:"<< __FUNCTION__ << "]" << " * Local mem size: " << d.getInfo<CL_DEVICE_LOCAL_MEM_SIZE>() << std::endl
+			<< "[OpenCL:"<< __FUNCTION__ << "]" << " * Work groups: " << d.getInfo<CL_DEVICE_MAX_WORK_GROUP_SIZE>() << std::endl
+			<< "[OpenCL:"<< __FUNCTION__ << "]" << " * Image support: " << d.getInfo<CL_DEVICE_IMAGE_SUPPORT>() << std::endl;
+	}
+	
+	#define HAS_MASK(a, mask) if ((a & mask) == mask)
+	
+	const char *kernelArgAddress(unsigned int a) {
+		std::string ret;
+		
+		HAS_MASK(a, CL_KERNEL_ARG_ADDRESS_GLOBAL) ret += "global ";
+		HAS_MASK(a, CL_KERNEL_ARG_ADDRESS_LOCAL) ret += "local ";
+		HAS_MASK(a, CL_KERNEL_ARG_ADDRESS_CONSTANT) ret += "constant ";
+		HAS_MASK(a, CL_KERNEL_ARG_ADDRESS_PRIVATE) ret += "private ";
+		
+		return ret.c_str();
+	}
+
+	const char *kernelArgAccess(unsigned int a) {
+		std::string ret;
+		
+		HAS_MASK(a, CL_KERNEL_ARG_ACCESS_READ_ONLY) ret += "read ";
+		HAS_MASK(a, CL_KERNEL_ARG_ACCESS_WRITE_ONLY) ret += "write ";
+		HAS_MASK(a, CL_KERNEL_ARG_ACCESS_READ_WRITE) ret += "read/write ";
+		HAS_MASK(a, CL_KERNEL_ARG_ACCESS_NONE) ret += "none ";
+		
+		return ret.c_str();
+	}
+
+	const char *kernelArgType(unsigned int a) {
+		std::string ret;
+		
+		HAS_MASK(a, CL_KERNEL_ARG_TYPE_NONE) ret += "none ";
+		HAS_MASK(a, CL_KERNEL_ARG_TYPE_CONST) ret += "const ";
+		HAS_MASK(a, CL_KERNEL_ARG_TYPE_RESTRICT) ret += "restrict ";
+		HAS_MASK(a, CL_KERNEL_ARG_TYPE_VOLATILE) ret += "volatile ";
+		
+		return ret.c_str();
+	}
+	
+	void kernelDump(Kernel *k) {
+		std::cout 
+			<< "[OpenCL:"<< __FUNCTION__ << "]" << " Kernel: " << k->getInfo<CL_KERNEL_FUNCTION_NAME>() << std::endl
+			<< "[OpenCL:"<< __FUNCTION__ << "]" << " * Args: " << k->getInfo<CL_KERNEL_NUM_ARGS>() << std::endl;
+			/*
+		for (int i = 0; i < initKernel->getInfo<CL_KERNEL_NUM_ARGS>(); i ++) {
+			std::cout
+				<< "[OpenCL:"<< __FUNCTION__ << "]" << " = Name: " << k->getArgInfo<CL_KERNEL_ARG_NAME>(i) << std::endl
+				<< "[OpenCL:"<< __FUNCTION__ << "]" << "   = Type: " << k->getArgInfo<CL_KERNEL_ARG_TYPE_NAME>(i) << std::endl
+				<< "[OpenCL:"<< __FUNCTION__ << "]" << "   = Type qualifier: " << kernelArgType(initKernel->getArgInfo<CL_KERNEL_ARG_TYPE_QUALIFIER>(i)) << std::endl
+				<< "[OpenCL:"<< __FUNCTION__ << "]" << "   = Access qualifier: " << kernelArgAccess(k->getArgInfo<CL_KERNEL_ARG_ACCESS_QUALIFIER>(i)) << std::endl
+				<< "[OpenCL:"<< __FUNCTION__ << "]" << "   = Address qualifier: " << kernelArgAddress(k->getArgInfo<CL_KERNEL_ARG_ADDRESS_QUALIFIER>(i)) << std::endl;
+		}*/
+	}
+	
+	const char *programBuildStatus(int s) {
+		if (s == 0) return "success";
+		if (s == -1) return "none";
+		if (s == -2) return "error";
+		if (s == -3) return "in progress";
+		return "unknown";
+	}
+	
+	void programBuildDump(Program *p) {
+		std::cerr << "[OpenCL:"<< __FUNCTION__ << "]" << " Build Status: " << programBuildStatus(program->getBuildInfo<CL_PROGRAM_BUILD_STATUS>(devices[0])) << std::endl;
+		std::cerr << "[OpenCL:"<< __FUNCTION__ << "]" << " Build Options: " << program->getBuildInfo<CL_PROGRAM_BUILD_OPTIONS>(devices[0]) << std::endl;
+		std::string log = program->getBuildInfo<CL_PROGRAM_BUILD_LOG>(devices[0]);
+		if (log.size() > 0)
+			std::cerr << "[OpenCL:"<< __FUNCTION__ << "]" << " Build Log\n\n" << program->getBuildInfo<CL_PROGRAM_BUILD_LOG>(devices[0]) << std::endl;
+	}
+
+	void errorDump(Error err) {
+		std::cerr << "[OpenCL:"<< __FUNCTION__ << "]" << " Error: " << err.what() << "(" << err.err() << ")" << std::endl;
 	}
 	
 	OpenCL() {
 		cl_int err = CL_SUCCESS;
 		try {
 			Platform::get(&platforms);
-			std::cout << "[OpenCL] Number of platforms: " << platforms.size() << std::endl;
 			for(int i = 0; i < platforms.size(); i++) {
 				Platform p = platforms.at(i);
 				platformDump(p);
@@ -199,9 +273,9 @@ struct OpenCL {
 				CL_CONTEXT_PLATFORM, (cl_context_properties)(platforms[0])(), 
 				0 };
 			context = Context(CL_DEVICE_TYPE_GPU, properties); 
-
 			devices = context.getInfo<CL_CONTEXT_DEVICES>();
-			std::cout << "[OpenCL] Number of devices: " << devices.size() << std::endl;
+
+			std::cout << "[OpenCL:"<< __FUNCTION__ << "]" << " Number of devices: " << context.getInfo<CL_CONTEXT_NUM_DEVICES>() << std::endl;
 			for(int i = 0; i < devices.size(); i++) {
 				Device d = devices.at(i);
 				deviceDump(d);
@@ -210,7 +284,7 @@ struct OpenCL {
 			queue = CommandQueue(context, devices[0], 0, &err);
 
 		} catch (Error err) {
-			std::cerr << "[OpenCL] Error: " << err.what() << "(" << err.err() << ")" << std::endl;
+			errorDump(err);
 			exit(1);
 		}
 		
@@ -220,6 +294,8 @@ struct OpenCL {
 	
 	void createTexture() {
 		glEnable(GL_TEXTURE_RECTANGLE_ARB);
+		glGenTextures(1, &textid);
+
 		glBindTexture(GL_TEXTURE_RECTANGLE_ARB, textid);
 		glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 		glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
@@ -227,66 +303,59 @@ struct OpenCL {
 		glBindTexture(GL_TEXTURE_RECTANGLE_ARB, 0);
 	}
 	
-	void createKernel(const char *f, const char *k) {
-		cl_int err = CL_SUCCESS;
-		double tick;
-
+	
+	Program *compileProgram(const char *f, const char *params = NULL) {
 		try {
 			std::string filename(f);
 			std::ifstream sourceFile(filename.c_str());
 			std::string sourceCode(std::istreambuf_iterator<char>(sourceFile), (std::istreambuf_iterator<char>()));
 
 			Program::Sources source(1, std::make_pair(sourceCode.c_str(), sourceCode.length()+1));
-			Program program = Program(context, source);
+			program = new Program(context, source);
 
-			tick = wallclock();
+			double tick = wallclock();
+			std::cout << "[OpenCL:"<< __FUNCTION__ << "]" << " Compiling: " << filename << std::endl;
 			try {
-				std::cout << "[OpenCL] Building kernel: " << filename << std::endl;
-				program.build("-cl-strict-aliasing -cl-unsafe-math-optimizations -cl-finite-math-only");
+				std::string kparams("-cl-strict-aliasing -cl-unsafe-math-optimizations -cl-finite-math-only ");
+				if (params)
+					kparams += std::string(params);
+				
+				program->build(kparams.c_str());
 			} catch (Error err) {
-				std::cerr << "[OpenCL] Error! " << std::endl;
-				std::cerr << "[OpenCL] Build Status: " << program.getBuildInfo<CL_PROGRAM_BUILD_STATUS>(devices[0]) << std::endl;
-				std::cerr << "[OpenCL] Build Options: " << program.getBuildInfo<CL_PROGRAM_BUILD_OPTIONS>(devices[0]) << std::endl;
-				std::cerr << "[OpenCL] Build Log:\n" << program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(devices[0]) << std::endl;
-
+				programBuildDump(program);
 				throw err;
 			}
-			std::cout << "[OpenCL] Build Log:\n" << program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(devices[0]) << std::endl;
-			printf("[OpenCL] Compile: %.2fms\n", 1000.f * (wallclock() - tick));
-
-			kernel = Kernel(program, "raytracer", &err);
-			
-			std::cout << "[OpenCL] Kernel: " << k << std::endl;
-			std::cout << "[OpenCL] * Private mem size: " << kernel.getWorkGroupInfo<CL_KERNEL_PRIVATE_MEM_SIZE>(devices[0]) << std::endl;
-			std::cout << "[OpenCL] * Local mem size: " << kernel.getWorkGroupInfo<CL_KERNEL_LOCAL_MEM_SIZE>(devices[0]) << std::endl;
-			
+			programBuildDump(program);
+			std::cout << "[OpenCL:"<< __FUNCTION__ << "]" << " Compile time: " << f << " ("<< 1000.f * (wallclock() - tick) << " ms)" << std::endl;
 		} catch (Error err) {
-			std::cerr << "[OpenCL] Error: " << err.what() << "(" << err.err() << ")" << std::endl;
+			errorDump(err);
+			exit(1);
+		}
+		
+		return program;
+	}
+	
+	void createKernel() {
+		program = compileProgram("raytracer.cl");
+		
+		try {
+			runKernel = new Kernel(*program, "raytracer");
+			kernelDump(runKernel);
+
+			initKernel = new Kernel(*program, "init_kernel");
+			kernelDump(initKernel);
+		} catch (Error err) {
+			errorDump(err);
 			exit(1);
 		}
 	}
 	
-	Buffer spheres_b, camera_b, random_b, frame_b;
-	
-#ifdef INTEROP
-	ImageGL image_b;
-	std::vector<Memory> glObjects;
-#else
-	Pixel *rgb;
-	Buffer rgb_b;
-#endif
-	
 	void createBuffers() {
 		try {
-			spheres_b = Buffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(Primitive) * scene->primitive_vector.size(), &scene->primitive_vector[0]);
+			prim_b = Buffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(Primitive) * scene->primitive_vector.size(), &scene->primitive_vector[0]);
 			camera_b = Buffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(Camera), &scene->camera);
-			
-			// HACK: initializes buffer, as CL_MEM_ALLOC_HOST_PTR doesn't seem to do so
-			// TODO: do this in opencl
-			Vector *frame = new Vector[width * height];
-			frame_b = Buffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, width * height * sizeof(Vector), frame);
-			delete frame;
-			
+			frame_b = Buffer(context, CL_MEM_READ_WRITE, width * height * sizeof(Vector));
+			ray_b = Buffer(context, CL_MEM_READ_WRITE, width * height * sizeof(Ray));
 
 #ifdef INTEROP
 			image_b = ImageGL(context, CL_MEM_WRITE_ONLY, GL_TEXTURE_RECTANGLE_ARB, 0, textid);
@@ -295,48 +364,64 @@ struct OpenCL {
 			rgb = new Pixel[width * height];
 			rgb_b = Buffer(context, CL_MEM_READ_WRITE, width * height * sizeof(Vector));
 #endif
+
 			samples = 0;
 			
 		} catch (Error err) {
-			std::cerr << "[OpenCL] Error: " << err.what() << "(" << err.err() << ")" << std::endl;
+			errorDump(err);
+			exit(1);
+		}
+	}
+	
+	void executeInitKernel() {
+		cl_int err = CL_SUCCESS;
+		try {
+			int argc = 0;
+/*
+			initKernel->setArg(argc++, prim_b);
+			initKernel->setArg(argc++, scene->primitive_vector.size());
+			initKernel->setArg(argc++, camera_b);
+			initKernel->setArg(argc++, sizeof(Primitive) * scene->primitive_vector.size(), NULL);
+			initKernel->setArg(argc++, (random_state_t){random(), random()});
+			initKernel->setArg(argc++, ray_b);
+*/			
+			Event event;
+			NDRange global(width, height);
+			queue.enqueueNDRangeKernel(*initKernel, NullRange, global, NullRange, NULL, &event); 
+			event.wait();
+		} catch (Error err) {
+			errorDump(err);
 			exit(1);
 		}
 	}
 	
 	void executeKernel() {
 		cl_int err = CL_SUCCESS;
-		double tick;
 
 		try {
-			kernel.setArg(0, spheres_b);
-			kernel.setArg(1, scene->primitive_vector.size());
-			kernel.setArg(2, camera_b);
-			kernel.setArg(3, sizeof(Primitive) * scene->primitive_vector.size(), NULL);
-
-			random_state_t seed = {random(), random()};
-			kernel.setArg(4, seed);
-
-			kernel.setArg(5, frame_b);
+			int argc = 0;
+			
+			runKernel->setArg(argc++, prim_b);
+			runKernel->setArg(argc++, scene->primitive_vector.size());
+			runKernel->setArg(argc++, camera_b);
+			runKernel->setArg(argc++, sizeof(Primitive) * scene->primitive_vector.size(), NULL);
+			runKernel->setArg(argc++, (random_state_t){random(), random()});
+			runKernel->setArg(argc++, frame_b);
 #ifdef INTEROP
-			kernel.setArg(6, image_b);
+			runKernel->setArg(argc++, image_b);
 #else
-			kernel.setArg(6, rgb_b);
+			runKernel->setArg(argc++, rgb_b);
 #endif
-			kernel.setArg(7, samples++);
+			runKernel->setArg(argc++, samples++);
 
-			tick = wallclock();
 #ifdef INTEROP
 			queue.enqueueAcquireGLObjects(&glObjects);
 #endif
-
-			tick = wallclock();
 			Event event;
 			NDRange global(width, height);
-			queue.enqueueNDRangeKernel(kernel, NullRange, global, NullRange, NULL, &event); 
-
+			queue.enqueueNDRangeKernel(*runKernel, NullRange, global, NullRange, NULL, &event); 
 			event.wait();
 
-			tick = wallclock();
 #ifdef INTEROP
 			queue.enqueueReleaseGLObjects(&glObjects);
 #else
@@ -344,12 +429,13 @@ struct OpenCL {
 #endif			
 		}
 		catch (Error err) {
-			std::cerr << "[OpenCL] Error: " << err.what() << "(" << err.err() << ")" << std::endl;
+			errorDump(err);
 			exit(1);
 		}
 	}
 };
 
+// main object
 OpenCL * openCL;
 
 // GLUT, OpenGL related functions
@@ -403,13 +489,14 @@ void keyboard(unsigned char key, int x, int y) {
 void idle() {	
 	double tick = wallclock();
 
+	//openCL->executeInitKernel();
 	openCL->executeKernel();
 
 	float seconds = 1000.f * (wallclock() - tick);
 	sprintf(label, "size: (%d, %d), samples: %d, frame: %0.3fms", openCL->width, openCL->height, openCL->samples, seconds);
 
 #ifndef INTEROP
-	glBindTexture(GL_TEXTURE_RECTANGLE_ARB, textid);
+	glBindTexture(GL_TEXTURE_RECTANGLE_ARB, openCL->textid);
 	glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	glTexImage2D(GL_TEXTURE_RECTANGLE_ARB, 0, GL_RGBA, openCL->width, openCL->height, 0, GL_RGB, GL_UNSIGNED_BYTE, openCL->rgb);
@@ -432,9 +519,6 @@ void glInit(int argc, char **argv) {
 	glutKeyboardFunc(keyboard);
 	glutIdleFunc(idle);
 	glutReshapeFunc(reshape);
-	
-	glEnable(GL_TEXTURE_RECTANGLE_ARB);
-	glGenTextures(1, &textid);
 }
 
 int main(int argc, char **argv) {
@@ -447,7 +531,7 @@ int main(int argc, char **argv) {
 	
 	openCL->createTexture();
 	openCL->createBuffers();
-	openCL->createKernel("raytracer.cl", "raytracer");
+	openCL->createKernel();
 
 	glutMainLoop();
 	

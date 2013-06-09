@@ -41,5 +41,19 @@ inline Vector sphere_normal(__local const Sphere *s, const Vector hit_point)
 	return normalize(hit_point - s->c);
 }
 
+/*
+inline Vector sphere_tangent(__local const Sphere *s, const Vector hit_point)
+{
+	Vector u = hit_point - s->c;
+	
+	if (u.x < u.y && u.x < u.z)
+		return cross(normalize((Vector)(0.f, -u.z, u.y)), u);
+	else if (u.y < u.x && u.y < u.z)
+		return cross(normalize((Vector)(-u.z, 0.f, u.x)), u);
+	else
+		return cross(normalize((Vector)(-u.y, u.x, 0.f)), u);
+	
+}
+*/
 
 #endif
