@@ -2,6 +2,7 @@
 #define GEOMETRY_H
 
 #define INTEROP
+//#define DEBUG
 
 #ifdef __IS_KERNEL
 
@@ -41,7 +42,7 @@ typedef struct {
 } Ray;
 
 typedef enum {
-	Diffuse, Specular, Refractive
+	Diffuse, Specular, Dielectric, Metal
 } Surface;
 
 typedef struct {
@@ -75,5 +76,14 @@ typedef struct {
 	Material m;
 	PrimitiveType t;
 } Primitive;
+
+typedef struct BVH;
+struct BVH {
+	Vector min;
+	Vector max;
+	struct BVH *left;
+	struct BVH *right;
+	unsigned int pidx;
+};
 
 #endif

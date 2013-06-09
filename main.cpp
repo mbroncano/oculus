@@ -73,8 +73,10 @@ struct Scene {
 					material.s = Diffuse;
 				} else if (type == "specular") {
 					material.s = Specular;
-				} else if (type == "refractive") {
-					material.s = Refractive;
+				} else if (type == "dielectric") {
+					material.s = Dielectric;
+				} else if (type == "metal") {
+					material.s = Metal;
 				} else {
 					throw "uknown material type";
 				}
@@ -204,7 +206,8 @@ struct OpenCL {
 			exit(1);
 		}
 		
-		width = height = 1024;
+		width = 1024;
+		height = 768;
 	}
 	
 	void createKernel(const char *f, const char *k) {
@@ -259,7 +262,6 @@ struct OpenCL {
 	void createBuffers() {
 		try {
 			spheres_b = Buffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(Primitive) * scene->primitive_vector.size(), &scene->primitive_vector[0]);
-//			spheres_b = Buffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(Primitive) * numprimitives, &primitives);
 			camera_b = Buffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(Camera), &scene->camera);
 			
 			// HACK: initializes buffer, as CL_MEM_ALLOC_HOST_PTR doesn't seem to do so
@@ -270,7 +272,7 @@ struct OpenCL {
 			
 
 #ifdef INTEROP
-			image_b = ImageGL(context, CL_MEM_WRITE_ONLY, GL_TEXTURE_2D, 0, textid);
+			image_b = ImageGL(context, CL_MEM_WRITE_ONLY, GL_TEXTURE_RECTANGLE_ARB, 0, textid);
 			glObjects.push_back(image_b);
 #else
 			rgb = new Pixel[width * height];
@@ -354,23 +356,25 @@ void display() {
 	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT);
 
-	glBindTexture(GL_TEXTURE_2D, textid);
+	glBindTexture(GL_TEXTURE_RECTANGLE_ARB, textid);
 	glBegin(GL_QUADS);
 	glTexCoord2f(0.0f, 0.0f); glVertex2f(0.0f, 0.0f);
-	glTexCoord2f(1.0f, 0.0f); glVertex2f(screen_w - 1.0f, 0.0f);
-	glTexCoord2f(1.0f, 1.0f); glVertex2f(screen_w - 1.0f, screen_h - 1.0f);
-	glTexCoord2f(0.0f, 1.0f); glVertex2f(0.0f,  screen_h - 1.0f);
+	glTexCoord2f(openCL->width - 1.0f, 0.0f); glVertex2f(screen_w - 1.0f, 0.0f);
+	glTexCoord2f(openCL->width - 1.0f, openCL->height - 1.0f); glVertex2f(screen_w - 1.0f, screen_h - 1.0f);
+	glTexCoord2f(0.0f, openCL->height - 1.0f); glVertex2f(0.0f,  screen_h - 1.0f);
 	glEnd();
+	glBindTexture(GL_TEXTURE_RECTANGLE_ARB, 0);
 
 	glEnable(GL_BLEND);
-	glBlendFunc (GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
-	glColor4f(0.f, 0.f, 0.8f, 0.7f);
+	glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	glColor4f(0.0f, 0.0f, 0.8f, 0.5f);
 	glRecti(10.f, 10.f, screen_w - 10.f, 40.f);
 
 	glColor3f(1.f, 1.f, 1.f);
 	glRasterPos2f(15.f, 20.f);
 	for (int i = 0; i < strlen (label); i++)
  		glutBitmapCharacter (GLUT_BITMAP_HELVETICA_18, label[i]);
+	glDisable(GL_BLEND);
 
 	glutSwapBuffers();
 }
@@ -391,27 +395,30 @@ void idle() {
 	sprintf(label, "size: (%d, %d), samples: %d, frame: %0.3fms", openCL->width, openCL->height, openCL->samples, seconds);
 
 #ifndef INTEROP
-	glBindTexture(GL_TEXTURE_2D, textid);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, openCL->width, openCL->height, 0, GL_RGB, GL_UNSIGNED_BYTE, openCL->rgb);
+	glBindTexture(GL_TEXTURE_RECTANGLE_ARB, textid);
+	glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexImage2D(GL_TEXTURE_RECTANGLE_ARB, 0, GL_RGBA, openCL->width, openCL->height, 0, GL_RGB, GL_UNSIGNED_BYTE, openCL->rgb);
+	glBindTexture(GL_TEXTURE_RECTANGLE_ARB, 0);
 #endif	
 
 	glutPostRedisplay();
 }
 
 void createTexture() {
-	glBindTexture(GL_TEXTURE_2D, textid);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, openCL->width, openCL->height, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
+	glEnable(GL_TEXTURE_RECTANGLE_ARB);
+	glBindTexture(GL_TEXTURE_RECTANGLE_ARB, textid);
+	glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexImage2D(GL_TEXTURE_RECTANGLE_ARB, 0, GL_RGBA, openCL->width, openCL->height, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
+	glBindTexture(GL_TEXTURE_RECTANGLE_ARB, 0);
 }
 
 void glInit(int argc, char **argv) {
 	glutInit(&argc, argv);
 	glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE | GLUT_ALPHA);
-	glutInitWindowSize(1024, 1024);
-	glutInitWindowPosition(1300, 50);
+	glutInitWindowSize(1024, 768);
+	glutInitWindowPosition(50, 50);
 	glutCreateWindow(argv[0]);
 
 	glutDisplayFunc(display);
@@ -419,7 +426,7 @@ void glInit(int argc, char **argv) {
 	glutIdleFunc(idle);
 	glutReshapeFunc(reshape);
 	
-	glEnable(GL_TEXTURE_2D);
+	glEnable(GL_TEXTURE_RECTANGLE_ARB);
 	glGenTextures(1, &textid);
 }
 
