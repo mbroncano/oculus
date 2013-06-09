@@ -273,8 +273,6 @@ static Vector scene_sample(
 	return sample;
 }
 
-
-
 static Ray camera_genray( __global const Camera *camera, float x, float y, int width, int height)
 {
 	const float fov = PI / 180.f * 45.f;
@@ -288,42 +286,6 @@ static Ray camera_genray( __global const Camera *camera, float x, float y, int w
 	
 	return (Ray){camera->o, normalize(d + zoom * vx * fx + zoom * vy * fy)};
 }
-
-kernel void init_kernel(
-	__global Primitive *primitives, 
-	int numprimitives,
-	__global const Camera *camera,
-	__local const Primitive *primitives_l, 
-	random_state_t seed,
-	__global Ray *rays
-)
-{
-	// work items and size
-	const int x = get_global_id(0);
-	const int y = get_global_id(1);
-	const int width = get_global_size(0);
-	const int height = get_global_size(1);
-
-	// xor seed per work items
-	seed ^= (random_state_t)(x, y);
-
-	// copy global to local memory
-	event_t event = async_work_group_copy((__local char *)primitives_l, (__global char *)primitives, sizeof(Primitive)*numprimitives, 0);
-	wait_group_events(1, &event);
-
-	// stochastic supersampling
-	float dx = x + randomf(&seed) - 0.5f;
-	float dy = y + randomf(&seed) - 0.5f;
-
-	// generate primary ray
-	Ray ray = camera_genray(camera, dx, dy, width, height);
-	
-	// store the ray
-	unsigned int index = y * width + height;
-	rays[index] = ray;
-}
-
-
 
 kernel void raytracer(
 	__global Primitive *primitives, 

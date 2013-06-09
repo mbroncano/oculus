@@ -341,9 +341,6 @@ struct OpenCL {
 		try {
 			runKernel = new Kernel(*program, "raytracer");
 			kernelDump(runKernel);
-
-			initKernel = new Kernel(*program, "init_kernel");
-			kernelDump(initKernel);
 		} catch (Error err) {
 			errorDump(err);
 			exit(1);
@@ -367,28 +364,6 @@ struct OpenCL {
 
 			samples = 0;
 			
-		} catch (Error err) {
-			errorDump(err);
-			exit(1);
-		}
-	}
-	
-	void executeInitKernel() {
-		cl_int err = CL_SUCCESS;
-		try {
-			int argc = 0;
-/*
-			initKernel->setArg(argc++, prim_b);
-			initKernel->setArg(argc++, scene->primitive_vector.size());
-			initKernel->setArg(argc++, camera_b);
-			initKernel->setArg(argc++, sizeof(Primitive) * scene->primitive_vector.size(), NULL);
-			initKernel->setArg(argc++, (random_state_t){random(), random()});
-			initKernel->setArg(argc++, ray_b);
-*/			
-			Event event;
-			NDRange global(width, height);
-			queue.enqueueNDRangeKernel(*initKernel, NullRange, global, NullRange, NULL, &event); 
-			event.wait();
 		} catch (Error err) {
 			errorDump(err);
 			exit(1);
