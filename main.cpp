@@ -149,12 +149,31 @@ struct OpenCL {
 	CommandQueue queue;
 
 	int width;
-	int height;
-	
-	int samples;
-	
+	int height;	
+	int samples;	
 	Scene *scene;
 
+	void platformDump(Platform p) {
+		std::cout 
+			<< "[OpenCL] Platform: " << p.getInfo<CL_PLATFORM_NAME>() << std::endl
+			<< "[OpenCL] * Vendor: " << p.getInfo<CL_PLATFORM_VENDOR>() << std::endl
+			<< "[OpenCL] * Version: " << p.getInfo<CL_PLATFORM_VERSION>() << std::endl
+			<< "[OpenCL] * Profile: " << p.getInfo<CL_PLATFORM_PROFILE>() << std::endl
+			<< "[OpenCL] * Extensions: " << p.getInfo<CL_PLATFORM_EXTENSIONS>() << std::endl;
+	}
+	
+	void deviceDump(Device d) {
+		std::cout
+			<< "[OpenCL] Device: " << d.getInfo<CL_DEVICE_NAME>() << std::endl
+			<< "[OpenCL] * Type: " << d.getInfo<CL_DEVICE_TYPE>() << std::endl
+			<< "[OpenCL] * Version: " << d.getInfo<CL_DEVICE_VERSION>() << std::endl
+			<< "[OpenCL] * Extensions: " << d.getInfo<CL_DEVICE_EXTENSIONS>() << std::endl
+			<< "[OpenCL] * Compute units: " << d.getInfo<CL_DEVICE_MAX_COMPUTE_UNITS>() << std::endl
+			<< "[OpenCL] * Global mem size: " << d.getInfo<CL_DEVICE_GLOBAL_MEM_SIZE>() << std::endl
+			<< "[OpenCL] * Local mem size: " << d.getInfo<CL_DEVICE_LOCAL_MEM_SIZE>() << std::endl
+			<< "[OpenCL] * Work groups: " << d.getInfo<CL_DEVICE_MAX_WORK_GROUP_SIZE>() << std::endl
+			<< "[OpenCL] * Image support: " << d.getInfo<CL_DEVICE_IMAGE_SUPPORT>() << std::endl;
+	}
 	
 	OpenCL() {
 		cl_int err = CL_SUCCESS;
@@ -163,16 +182,13 @@ struct OpenCL {
 			std::cout << "[OpenCL] Number of platforms: " << platforms.size() << std::endl;
 			for(int i = 0; i < platforms.size(); i++) {
 				Platform p = platforms.at(i);
-				std::cout << "[OpenCL] Platform: " << i << std::endl;
-				std::cout << "[OpenCL] * Name: " << p.getInfo<CL_PLATFORM_NAME>() << std::endl;
-				std::cout << "[OpenCL] * Vendor: " << p.getInfo<CL_PLATFORM_VENDOR>() << std::endl;
-				std::cout << "[OpenCL] * Version: " << p.getInfo<CL_PLATFORM_VERSION>() << std::endl;
-				std::cout << "[OpenCL] * Profile: " << p.getInfo<CL_PLATFORM_PROFILE>() << std::endl;
-				std::cout << "[OpenCL] * Extensions: " << p.getInfo<CL_PLATFORM_EXTENSIONS>() << std::endl;
+				platformDump(p);
 			}
-			
+
+#ifdef INTEROP
 			CGLContextObj glContext = CGLGetCurrentContext();
 			CGLShareGroupObj shareGroup = CGLGetShareGroup(glContext);
+#endif
 
 			// mac os only!
 			cl_context_properties properties[] = {
@@ -187,16 +203,7 @@ struct OpenCL {
 			std::cout << "[OpenCL] Number of devices: " << devices.size() << std::endl;
 			for(int i = 0; i < devices.size(); i++) {
 				Device d = devices.at(i);
-				std::cout << "[OpenCL] Device: " << i << std::endl;
-				std::cout << "[OpenCL] * Name: " << d.getInfo<CL_DEVICE_NAME>() << std::endl;
-				std::cout << "[OpenCL] * Type: " << d.getInfo<CL_DEVICE_TYPE>() << std::endl;
-				std::cout << "[OpenCL] * Version: " << d.getInfo<CL_DEVICE_VERSION>() << std::endl;
-				std::cout << "[OpenCL] * Extensions: " << d.getInfo<CL_DEVICE_EXTENSIONS>() << std::endl;
-				std::cout << "[OpenCL] * Compute units: " << d.getInfo<CL_DEVICE_MAX_COMPUTE_UNITS>() << std::endl;
-				std::cout << "[OpenCL] * Global mem size: " << d.getInfo<CL_DEVICE_GLOBAL_MEM_SIZE>() << std::endl;
-				std::cout << "[OpenCL] * Local mem size: " << d.getInfo<CL_DEVICE_LOCAL_MEM_SIZE>() << std::endl;
-				std::cout << "[OpenCL] * Work groups: " << d.getInfo<CL_DEVICE_MAX_WORK_GROUP_SIZE>() << std::endl;
-				std::cout << "[OpenCL] * Image support: " << d.getInfo<CL_DEVICE_IMAGE_SUPPORT>() << std::endl;
+				deviceDump(d);
 			}
 			
 			queue = CommandQueue(context, devices[0], 0, &err);
@@ -311,7 +318,6 @@ struct OpenCL {
 #ifdef INTEROP
 			queue.enqueueAcquireGLObjects(&glObjects);
 #endif
-			//printf("[OpenCL] Write buffers: %.2f ms\n", 1000.f * (wallclock() - tick));
 
 			tick = wallclock();
 			Event event;
@@ -319,7 +325,6 @@ struct OpenCL {
 			queue.enqueueNDRangeKernel(kernel, NullRange, global, NullRange, NULL, &event); 
 
 			event.wait();
-			//printf("[OpenCL] Execution: %.2f ms\n", 1000.f * (wallclock() - tick));
 
 			tick = wallclock();
 #ifdef INTEROP
@@ -327,7 +332,6 @@ struct OpenCL {
 #else
 			queue.enqueueReadBuffer(rgb_b, CL_TRUE, 0, width * height * sizeof(Pixel), rgb);
 #endif			
-			//printf("[OpenCL] Read buffers: %.2fms\n", 1000.f * (wallclock() - tick));
 		}
 		catch (Error err) {
 			std::cerr << "[OpenCL] Error: " << err.what() << "(" << err.err() << ")" << std::endl;
@@ -446,5 +450,5 @@ int main(int argc, char **argv) {
 	
 	delete openCL;
 
-	return EXIT_SUCCESS;
+	return 0;
 }
