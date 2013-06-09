@@ -17,8 +17,6 @@ using namespace cl;
 
 #include "geometry.h"
 
-GLuint textid;
-
 double wallclock() {
 	struct timeval t;
 	gettimeofday(&t, NULL);
@@ -152,6 +150,9 @@ struct OpenCL {
 	int height;	
 	int samples;	
 	Scene *scene;
+	
+	GLuint textid;
+	
 
 	void platformDump(Platform p) {
 		std::cout 
@@ -215,6 +216,15 @@ struct OpenCL {
 		
 		width = 1024;
 		height = 768;
+	}
+	
+	void createTexture() {
+		glEnable(GL_TEXTURE_RECTANGLE_ARB);
+		glBindTexture(GL_TEXTURE_RECTANGLE_ARB, textid);
+		glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+		glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		glTexImage2D(GL_TEXTURE_RECTANGLE_ARB, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
+		glBindTexture(GL_TEXTURE_RECTANGLE_ARB, 0);
 	}
 	
 	void createKernel(const char *f, const char *k) {
@@ -360,7 +370,7 @@ void display() {
 	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT);
 
-	glBindTexture(GL_TEXTURE_RECTANGLE_ARB, textid);
+	glBindTexture(GL_TEXTURE_RECTANGLE_ARB, openCL->textid);
 	glBegin(GL_QUADS);
 	glTexCoord2f(0.0f, 0.0f); glVertex2f(0.0f, 0.0f);
 	glTexCoord2f(openCL->width - 1.0f, 0.0f); glVertex2f(screen_w - 1.0f, 0.0f);
@@ -409,14 +419,7 @@ void idle() {
 	glutPostRedisplay();
 }
 
-void createTexture() {
-	glEnable(GL_TEXTURE_RECTANGLE_ARB);
-	glBindTexture(GL_TEXTURE_RECTANGLE_ARB, textid);
-	glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexImage2D(GL_TEXTURE_RECTANGLE_ARB, 0, GL_RGBA, openCL->width, openCL->height, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
-	glBindTexture(GL_TEXTURE_RECTANGLE_ARB, 0);
-}
+
 
 void glInit(int argc, char **argv) {
 	glutInit(&argc, argv);
@@ -442,7 +445,7 @@ int main(int argc, char **argv) {
 	openCL = new OpenCL();
 	openCL->scene = scene;
 	
-	createTexture();
+	openCL->createTexture();
 	openCL->createBuffers();
 	openCL->createKernel("raytracer.cl", "raytracer");
 
