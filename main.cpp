@@ -30,7 +30,8 @@ struct sort_axis {
 	int i;
 	
 	sort_axis(int i) : i(i) {}
-	bool operator()(const BVH& a, const BVH& b) { return (a.min.s[i] + a.max.s[i])/2.f < (b.max.s[i] + b.min.s[i])/2.f; }
+//	bool operator()(const BVH& a, const BVH& b) { return (a.min.s[i] + a.max.s[i])/2.f < (b.min.s[i] + b.max.s[i])/2.f; }
+	bool operator()(const BVH& a, const BVH& b) { return a.min.s[i] < b.min.s[i]; }
 };
 
 
@@ -242,7 +243,7 @@ struct OpenCL {
 	Scene *scene;
 	
 	GLuint textid;
-	Buffer prim_b, camera_b, random_b, frame_b, ray_b;
+	Buffer prim_b, camera_b, random_b, frame_b, ray_b, bvh_b;
 
 #ifdef INTEROP
 	ImageGL image_b;
@@ -366,7 +367,7 @@ struct OpenCL {
 #endif
 				CL_CONTEXT_PLATFORM, (cl_context_properties)(platforms[0])(), 
 				0 };
-			context = Context(CL_DEVICE_TYPE_GPU, properties); 
+			context = Context(MAIN_DEVICE, properties); 
 			devices = context.getInfo<CL_CONTEXT_DEVICES>();
 
 			std::cout << "[OpenCL:"<< __FUNCTION__ << "]" << " Number of devices: " << context.getInfo<CL_CONTEXT_NUM_DEVICES>() << std::endl;
@@ -384,6 +385,7 @@ struct OpenCL {
 		
 		width = 1024;
 		height = 768;
+//		width = height = 4;
 	}
 	
 	void createTexture() {
@@ -447,6 +449,7 @@ struct OpenCL {
 			camera_b = Buffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(Camera), &scene->camera);
 			frame_b = Buffer(context, CL_MEM_READ_WRITE, width * height * sizeof(Vector));
 			ray_b = Buffer(context, CL_MEM_READ_WRITE, width * height * sizeof(Ray));
+			bvh_b = Buffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(BVH) * scene->bvhTree->bvh_vec.size(), &scene->bvhTree->bvh_vec[0]);
 
 #ifdef INTEROP
 			image_b = ImageGL(context, CL_MEM_WRITE_ONLY, GL_TEXTURE_RECTANGLE_ARB, 0, textid);
@@ -482,6 +485,9 @@ struct OpenCL {
 			runKernel->setArg(argc++, rgb_b);
 #endif
 			runKernel->setArg(argc++, samples++);
+			runKernel->setArg(argc++, bvh_b);
+			runKernel->setArg(argc++, scene->bvhTree->bvh_vec.size());
+			runKernel->setArg(argc++, sizeof(BVH) * scene->bvhTree->bvh_vec.size(), NULL);
 
 #ifdef INTEROP
 			queue.enqueueAcquireGLObjects(&glObjects);
@@ -592,9 +598,8 @@ void glInit(int argc, char **argv) {
 
 int main(int argc, char **argv) {
 	Scene *scene = new Scene();
-	scene->loadJson("cornell.json");
+	scene->loadJson("scene.json");
 	scene->buildBVH();
-	return 0;
 	
 	glInit(argc, argv);
 	openCL = new OpenCL();
@@ -603,6 +608,7 @@ int main(int argc, char **argv) {
 	openCL->createTexture();
 	openCL->createBuffers();
 	openCL->createKernel();
+//	openCL->executeKernel();
 
 	glutMainLoop();
 	

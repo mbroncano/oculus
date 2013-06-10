@@ -32,6 +32,7 @@ inline Vector triangle_surfacepoint(__local const Triangle *t, const float u, co
 {
 	const Vector edge[2] = { (t->p[1] - t->p[0]), (t->p[2] - t->p[0]) };
 
+	// TODO: use mad() ?
 	return t->p[0] + edge[0] * u + edge[1] * v;
 }
 

@@ -70,6 +70,94 @@ static float scene_intersect(__local const Primitive *primitives, const int nump
 	return distance;
 }
 
+inline bool bvh_intersect_component(float a1, float a2, float b1, float b2)
+{
+	// a1, a2 are not sorted - b1 and b2 are
+	float t1 = min(a1, a2);
+	float t2 = max(a1, a2);
+	
+	float m1 = min(t1, b1);
+	float m2 = min(t2, b2);
+	
+	bool c1 = (m1 == a1) && (m2 == a2);
+	bool c2 = (m1 == b1) && (m2 == b2);
+	bool c3 = c1 || c2;
+	return !c3;
+}
+
+inline bool bvh_intersect(const Ray *r, __local const BVH *bvh)
+{
+	return 	bvh_intersect_component(r->o.s0, sign(r->d.s0) * FLT_MAX, bvh->min.s0, bvh->max.s0) ||
+			bvh_intersect_component(r->o.s1, sign(r->d.s1) * FLT_MAX, bvh->min.s1, bvh->max.s1) ||
+			bvh_intersect_component(r->o.s2, sign(r->d.s2) * FLT_MAX, bvh->min.s2, bvh->max.s2);
+}
+
+/*
+#define MAX_STACK 20
+typedef struct {
+	int i;
+	__global BVH* s[MAX_STACK];
+} stack_t;
+
+inline void stack_clear(stack_t *s) { s->i = 0; }
+inline void stack_push(stack_t *s, __global BVH *b) { s->s[s->i] = b; s->i++; }
+inline void stack_pop(stack_t *s, __global BVH **b) { s->i--; *b = s->s[s->i]; }
+*/
+
+#define LOG if (get_global_id(0) == 6000 && get_global_id(1) == 7000)
+
+static float scene_intersect_bvh(__local const Primitive *primitives, const int numprimitives, const Ray *r, __local Primitive **s, __local BVH *bvh)
+{
+	float distance = FLT_MAX;
+	
+	__local BVH *stack_s[20];
+	int stack_i = 0;
+
+	__local BVH *node = bvh;
+	stack_s[stack_i++] = node;
+
+	
+	// iterate while the stack is not empty
+	while (stack_i != 0) {
+		// retrieve a node from the stack
+		node = stack_s[--stack_i];
+		LOG printf("[%d]\tnode:%d p:%d l:%d r:%d\n", stack_i, node - bvh, node->pid, node->left, node->right);
+		
+		// first check if we intersect with the node
+		if (bvh_intersect(r, node)) {
+			LOG printf("\tintersects!\n");
+			
+			// check if this is a leaf node
+			if (node->pid != -1) {
+				LOG printf("\tcheck primitive: %d\n", node->pid);
+				float d = primitive_distance(primitives + node->pid, r);
+				if (d < distance) {
+					*s = (__local Primitive *)(primitives + node->pid);
+					distance = d;
+					LOG printf("\td: %f, p: %d\n", distance, *s - primitives);
+				}
+				LOG printf("*** %d\n", stack_i);
+				if (stack_i == 0) break;
+				continue;
+			}
+
+			// check if we have right node, and if we intersect with it
+			if ((node->right != -1) && bvh_intersect(r, bvh + node->right)) {
+				LOG printf("\tpush right: %d\n", node->right);
+				stack_s[stack_i++] = bvh + node->right;
+			}
+			// check if we intersect the left node (we always should have a left node if we're not leaf)
+			if (bvh_intersect(r, bvh + node->left)) {
+				LOG printf("\tpush left: %d\n", node->left);
+				stack_s[stack_i++] = bvh + node->left;
+			}
+
+		}
+	}
+
+	return distance;
+} 
+
 /*
 // by some strange reason this is slower than intersecting with all primitives ...
 static float scene_intersect_shadow(__local const Primitive *primitives, const int numprimitives, const Ray *s_ray, __local const Primitive *l)
@@ -177,7 +265,8 @@ static Vector scene_sample(
 	__local const Primitive *primitives,
 	const int numprimitives,
 	random_state_t *rnd,
-	const Ray *ray
+	const Ray *ray,
+	__local BVH *bvh
 )
 {
 	int depth = 6;
@@ -188,7 +277,8 @@ static Vector scene_sample(
 
 	while (--depth) {
 		__local Primitive *s = 0;
-		float distance = scene_intersect(primitives, numprimitives, &r, &s);
+//		float distance = scene_intersect(primitives, numprimitives, &r, &s);
+		float distance = scene_intersect_bvh(primitives, numprimitives, &r, &s, bvh);
 
 		if (distance == FLT_MAX) {
 			return sample;
@@ -275,7 +365,7 @@ static Vector scene_sample(
 
 static Ray camera_genray( __global const Camera *camera, float x, float y, int width, int height)
 {
-	const float fov = PI / 180.f * 45.f;
+	const float fov = radians(45.f);
 	const float fx = (float)x / width - 0.5f;
 	const float fy = (float)y / height - 0.5f;
 	const float zoom = 1.f;
@@ -299,7 +389,10 @@ kernel void raytracer(
 #else
 	__global Pixel *rgb,
 #endif
-	unsigned int samples
+	unsigned int samples,
+	__global BVH *bvh,
+	int numbvh,
+	__local BVH *bvh_l
 	)
 {
 	// work items and size
@@ -314,6 +407,10 @@ kernel void raytracer(
 	// copy global to local memory
 	event_t event = async_work_group_copy((__local char *)primitives_l, (__global char *)primitives, sizeof(Primitive)*numprimitives, 0);
 	wait_group_events(1, &event);
+
+	event = async_work_group_copy((__local char *)bvh_l, (__global char *)bvh, sizeof(BVH)*numbvh, 0);
+	wait_group_events(1, &event);
+
 #ifdef DEBUG
 	if (samples != 0 && x ==0 && y ==0) {
 		dump_primitives(primitives_l, numprimitives);
@@ -326,7 +423,7 @@ kernel void raytracer(
 
 	// generate primary ray and path tracing
 	Ray ray = camera_genray(camera, dx, dy, width, height);
-	Vector pixel = scene_sample(primitives_l, numprimitives, &seed, &ray);
+	Vector pixel = scene_sample(primitives_l, numprimitives, &seed, &ray, bvh_l);
 
 	// averages the pixel, except for the first
 	uint index = y * width + x;

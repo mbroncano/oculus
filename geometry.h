@@ -2,6 +2,7 @@
 #define GEOMETRY_H
 
 #define INTEROP
+#define MAIN_DEVICE CL_DEVICE_TYPE_GPU
 //#define DEBUG
 
 #ifdef __IS_KERNEL
@@ -84,7 +85,7 @@ typedef struct {
 	Vector min, max;
 } BVH;
 
-#ifndef __IS_KERNEL__
+#ifndef __IS_KERNEL
 
 Vector operator+(Vector &a, Vector &b) {
 	return (Vector){a.x + b.x, a.y + b.y, a.z + b.z};
