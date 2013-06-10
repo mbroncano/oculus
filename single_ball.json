@@ -1,0 +1,122 @@
+{
+	"scene": {
+		"camera": {
+			"origin": [50.0, 45.0, 205.6],
+			"target": [50.0, 44.957388, 204.6]
+		},
+
+		"materials": [{
+			"name": "mirror",
+			"type": "specular",
+			"color": [0.9, 0.9, 0.9],
+			"emission": 0.0
+		}, {
+			"name": "dark mirror",
+			"type": "specular",
+			"color": [0.4, 0.4, 0.4],
+			"emission": 0.0
+		}, {
+			"name": "glass",
+			"type": "dielectric",
+			"color": [0.9, 0.9, 0.9],
+			"emission": 0.0
+		}, {
+			"name": "steel",
+			"type": "metal",
+			"color": [0.9, 0.9, 0.9],
+			"emission": 0.0
+		}, {
+			"name": "white",
+			"type": "diffuse",
+			"color": [0.75, 0.75, 0.75],
+			"emission": 0.0
+		}, {
+			"name": "red",
+			"type": "diffuse",
+			"color": [0.75, 0.25, 0.25],
+			"emission": 0.0
+		}, {
+			"name": "green",
+			"type": "diffuse",
+			"color": [0.25, 0.75, 0.25],
+			"emission": 0.0
+		}, {
+			"name": "blue",
+			"type": "diffuse",
+			"color": [0.25, 0.25, 0.75],
+			"emission": 0.0
+		}, {
+			"name": "magenta",
+			"type": "diffuse",
+			"color": [0.75, 0.25, 0.75],
+			"emission": 0.0
+		}, {
+			"name": "light",
+			"type": "diffuse",
+			"color": [0.9, 0.9, 0.9],
+			"emission": 12.0
+		}],
+
+		"primitives": [{
+			"name": "light",
+			"type": "triangle",
+			"points": [
+				[40.0, 81.0, 40.0],
+				[40.0, 81.0, 60.0],
+				[60.0, 81.0, 40.0]
+			],
+			"material": "light"
+		}, {
+			"name": "metal ball",
+			"type": "sphere",
+			"center": [50, 40, 50],
+			"radius": 25,
+			"material": "steel"
+		}, {
+			"name": "floor",
+			"type": "triangle",
+			"points": [
+				[0.0, 0.0, 0.0],
+				[0.0, 0.0, 120.0],
+				[100.0, 0.0, 0.0]
+			],
+			"material": "white"
+		}, {
+			"name": "ceiling",
+			"type": "triangle",
+			"points": [
+				[0.0, 81.6, 0.0],
+				[0.0, 81.6, 120.0],
+				[100.0, 81.6, 0.0]
+			],
+			"material": "magenta"
+		}, {
+			"name": "left",
+			"type": "triangle",
+			"points": [
+				[0.0, 0.0, 0.0],
+				[0.0, 81.6, 0.0],
+				[0.0, 0.0, 120.0]
+			],
+			"material": "red"
+		}, {
+			"name": "right",
+			"type": "triangle",
+			"points": [
+				[100.0, 0.0, 0.0],
+				[100.0, 81.6, 0.0],
+				[100.0, 0.0, 120.0]
+			],
+			"material": "green"
+		}, {
+			"name": "back",
+			"type": "triangle",
+			"points": [
+				[0.0, 0.0, 0.0],
+				[0.0, 81.6, 0.0],
+				[100.0, 0.0, 0.0]
+			],
+			"material": "white"
+		}]
+	}
+}
