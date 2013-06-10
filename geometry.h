@@ -77,12 +77,78 @@ typedef struct {
 	PrimitiveType t;
 } Primitive;
 
-struct BVH {
-	Vector min;
-	Vector max;
-	struct BVH *left;
-	struct BVH *right;
-	unsigned int pidx;
-};
+typedef struct {
+	int left;
+	int right;
+	int pid;
+	Vector min, max;
+} BVH;
+
+#ifndef __IS_KERNEL__
+
+Vector operator+(Vector &a, Vector &b) {
+	return (Vector){a.x + b.x, a.y + b.y, a.z + b.z};
+}
+
+Vector operator-(Vector &a, Vector &b) {
+	return (Vector){a.x - b.x, a.y - b.y, a.z - b.z};
+}
+
+Vector min(Vector &a, Vector &b)
+{
+	Vector r;
+	r.x = std::min(a.x, b.x);
+	r.y = std::min(a.y, b.y);
+	r.z = std::min(a.z, b.z);
+	return r;
+}
+
+Vector max(Vector &a, Vector &b)
+{
+	Vector r;
+	r.x = std::max(a.x, b.x);
+	r.y = std::max(a.y, b.y);
+	r.z = std::max(a.z, b.z);
+	return r;
+}
+
+Vector min(Vector &a, Vector &b, Vector &c)
+{
+	Vector r;
+	r.x = std::min(std::min(a.x, b.x), std::min(b.x, c.x));
+	r.y = std::min(std::min(a.y, b.y), std::min(b.y, c.y));
+	r.z = std::min(std::min(a.z, b.z), std::min(b.z, c.z));
+	return r;
+}
+
+Vector max(Vector &a, Vector &b, Vector &c)
+{
+	Vector r;
+	r.x = std::max(std::max(a.x, b.x), std::max(b.x, c.x));
+	r.y = std::max(std::max(a.y, b.y), std::max(b.y, c.y));
+	r.z = std::max(std::max(a.z, b.z), std::max(b.z, c.z));
+	return r;
+}
+
+std::ostream& operator<<(std::ostream& os, const Vector& a)
+{
+	os << setiosflags(std::ios::fixed) << std::setprecision(1);
+	os << "(" << a.x << ", " << a.y << ", " << a.z << ")";
+	return os;
+}
+
+std::ostream& operator<<(std::ostream& os, const BVH& a)
+{
+	os << "[flat] min" << a.min << " max" << a.max << " left:" << a.left << " right:" << a.right << " pid:" << a.pid;
+	return os;
+}
+
+std::ostream& operator<<(std::ostream& os, const Primitive& a)
+{
+	((a.t == sphere)?(os << "[s] c" << a.sphere.c << " r:" << a.sphere.r):(os << "[t] p0" << a.triangle.p[0] << " p1" << a.triangle.p[1] << " p2" << a.triangle.p[2]));
+	return os;
+}
+
+#endif
 
 #endif

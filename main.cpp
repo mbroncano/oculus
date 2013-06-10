@@ -4,6 +4,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <iostream>
+#include <iomanip>
 #include <string>
 #include <map>
 #include <fstream>
@@ -24,10 +25,103 @@ double wallclock() {
 	return t.tv_sec + t.tv_usec / 1000000.0;
 }
 
+// functor to sort by axis
+struct sort_axis {
+	int i;
+	
+	sort_axis(int i) : i(i) {}
+	bool operator()(const BVH& a, const BVH& b) { return (a.min.s[i] + a.max.s[i])/2.f < (b.max.s[i] + b.min.s[i])/2.f; }
+};
+
+
+struct BVHTree {
+	std::vector<BVH> bvh_vec;
+
+	BVHTree(std::vector<Primitive>& pvec) {
+		for (int i = 0; i < pvec.size(); i ++) {
+			BVH bvh = nodeFromPrimitive(pvec, i);
+			bvh_vec.push_back(bvh);
+		};
+
+		std::vector<BVH *> flat;
+		int root = flatBVHTree(bvh_vec, bvh_vec.begin(), bvh_vec.end() - 1, 0, flat);
+
+		bvh_vec.clear();
+		for (int i = 0; i < flat.size(); i++) {
+			bvh_vec.push_back(*flat[i]);
+		}
+	}
+
+	BVH nodeFromPrimitive(std::vector<Primitive>& pvec, int i) {
+		Primitive p = pvec[i];
+		BVH node;
+		if (p.t == sphere) {
+			Vector r = (Vector){p.sphere.r, p.sphere.r, p.sphere.r};
+			node.min = p.sphere.c - r;
+			node.max = p.sphere.c + r;
+		} else if (p.t == triangle) {
+			node.min = min(p.triangle.p[0], p.triangle.p[1], p.triangle.p[2]);
+			node.max = max(p.triangle.p[0], p.triangle.p[1], p.triangle.p[2]);
+		}
+		node.left = node.right = 0;
+		node.pid = i;
+		
+		return node;
+	}
+
+	int flatBVHTree(
+		std::vector<BVH> list, 
+		std::vector<BVH>::iterator start, 
+		std::vector<BVH>::iterator end, 
+		int axis,
+		std::vector<BVH *>& flat
+		)
+	{
+		int d = end - start;
+		int index = flat.size();
+
+		flat.push_back(new BVH());
+		BVH *p = flat.back();
+
+		p->min = (*start).min;
+		p->max = (*start).max;
+
+		if (d == 0) {
+			p->pid = (*start).pid;
+			p->left = p->right = -1;
+			return index;
+		}
+
+		for (std::vector<BVH>::iterator it = start; it != end; ++it) {
+			p->min = min(p->min, (*it).min);
+			p->max = max(p->max, (*it).max);
+		}
+
+		std::sort(start, end, sort_axis(axis % 3));
+		axis++;
+
+		p->pid = -1;
+		p->left = flatBVHTree(list, start, start + d/2, axis, flat);
+		p->right = flatBVHTree(list, start + d/2 + 1, end, axis, flat);
+
+		return index;
+	}
+	
+};
+
 struct Scene {
 	Camera camera;
 	std::map<std::string, Material> material_map;
 	std::vector<Primitive> primitive_vector;
+	BVHTree *bvhTree;
+	
+	void buildBVH() {
+		bvhTree = new BVHTree(primitive_vector);
+		for (int i = 0; i < bvhTree->bvh_vec.size(); i++) {
+			std::cout << "["<< i << "] " << bvhTree->bvh_vec[i] << std::endl;
+		}
+		
+	}
 
 	Vector getVector(JSON_Array *vector_array) {
 		if (json_array_get_count(vector_array) != 3) {
@@ -39,7 +133,7 @@ struct Scene {
 
 		return v;
 	}
-
+	
 	void loadJson(const char *f) {
 		try {
 			JSON_Value *_root = json_parse_file(f);
@@ -498,7 +592,9 @@ void glInit(int argc, char **argv) {
 
 int main(int argc, char **argv) {
 	Scene *scene = new Scene();
-	scene->loadJson("scene.json");
+	scene->loadJson("cornell.json");
+	scene->buildBVH();
+	return 0;
 	
 	glInit(argc, argv);
 	openCL = new OpenCL();
