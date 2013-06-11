@@ -4,7 +4,7 @@
 #include "geometry.h"
 
 // Moller - Trumbore method
-inline float triangle_distance(__local const Triangle *t, const Ray *r)
+inline float triangle_distance(__global const Triangle *t, const Ray *r)
 {
 	const Vector edge[2] = { (t->p[1] - t->p[0]), (t->p[2] - t->p[0]) };
 	
@@ -28,7 +28,7 @@ inline float triangle_distance(__local const Triangle *t, const Ray *r)
 	return ret > 0.f ? ret : FLT_MAX;
 }
 
-inline Vector triangle_surfacepoint(__local const Triangle *t, const float u, const float v)
+inline Vector triangle_surfacepoint(__global const Triangle *t, const float u, const float v)
 {
 	const Vector edge[2] = { (t->p[1] - t->p[0]), (t->p[2] - t->p[0]) };
 
@@ -36,7 +36,7 @@ inline Vector triangle_surfacepoint(__local const Triangle *t, const float u, co
 	return t->p[0] + edge[0] * u + edge[1] * v;
 }
 
-inline Vector triangle_normal(__local const Triangle *t, const Vector hit_point)
+inline Vector triangle_normal(__global const Triangle *t, const Vector hit_point)
 {
 	const Vector edge[2] = { (t->p[1] - t->p[0]), (t->p[2] - t->p[0]) };
 
@@ -44,7 +44,7 @@ inline Vector triangle_normal(__local const Triangle *t, const Vector hit_point)
 }
 
 /*
-inline textcoord_t triangle_textcoords(__local const Triangle *t, const Vector hit_point)
+inline textcoord_t triangle_textcoords(__global const Triangle *t, const Vector hit_point)
 {
 	const Vector edge[2] = { (t->p[1] - t->p[0]), (t->p[2] - t->p[0]) };
 	const float2 len2 = { pow(length(edge[0]), 2), pow(length(edge[1]), 2) };

@@ -65,7 +65,7 @@ struct BVHTree {
 			node.max = max(p.triangle.p[0], p.triangle.p[1], p.triangle.p[2]);
 		}
 		node.left = node.right = 0;
-		node.pid = i;
+		node.pid[0] = i;
 		
 		return node;
 	}
@@ -84,12 +84,15 @@ struct BVHTree {
 		flat.push_back(new BVH());
 		BVH *p = flat.back();
 
+		p->pid[0] = p->left = p->right = -1;
 		p->min = (*start).min;
 		p->max = (*start).max;
 
-		if (d == 0) {
-			p->pid = (*start).pid;
-			p->left = p->right = -1;
+		if (d < 4) {
+			p->pid[0] = (*start).pid[0];
+			if (start++ != end) p->pid[1] = (*start).pid[0];
+			if (start++ != end) p->pid[2] = (*start).pid[0];
+			if (start++ != end) p->pid[3] = (*start).pid[0];
 			return index;
 		}
 
@@ -101,7 +104,6 @@ struct BVHTree {
 		std::sort(start, end, sort_axis(axis % 3));
 		axis++;
 
-		p->pid = -1;
 		p->left = flatBVHTree(list, start, start + d/2, axis, flat);
 		p->right = flatBVHTree(list, start + d/2 + 1, end, axis, flat);
 
@@ -119,7 +121,7 @@ struct Scene {
 	void buildBVH() {
 		bvhTree = new BVHTree(primitive_vector);
 		for (int i = 0; i < bvhTree->bvh_vec.size(); i++) {
-			std::cout << "["<< i << "] " << bvhTree->bvh_vec[i] << std::endl;
+			//std::cout << "["<< i << "] " << bvhTree->bvh_vec[i] << std::endl;
 		}
 		
 	}
@@ -133,6 +135,42 @@ struct Scene {
 			v.s[i] = json_array_get_number(vector_array, i); 
 
 		return v;
+	}
+	
+	void testScene() {
+		int n = 10;
+		int r = 100/n/2 - 1;
+		int ofs = 100/n;
+		int cofs = ofs/2;
+		for (int i = 0; i < n; i ++)
+			for (int j = 0; j < n; j ++)
+				for (int k = 0; k < n; k ++) {
+					Primitive s;
+					s.sphere.c = (Vector){cofs + i * ofs, cofs + j * ofs, cofs + k * ofs};
+					s.sphere.r = r;
+					s.t = sphere;
+					s.m.c = (Vector){0.9f, 0.9f, 0.9f};
+					s.m.s = Diffuse;
+					s.m.e = 0.f;
+					primitive_vector.push_back(s);
+				}
+				
+		Primitive t;
+		t.triangle.p[0] = (Vector){20.f, 120.f, 20.f};
+		t.triangle.p[1] = (Vector){20.f, 120.f, 80.f};
+		t.triangle.p[2] = (Vector){80.f, 120.f, 20.f};
+		t.t = triangle;
+		t.m.c = (Vector){0.9f, 0.9f, 0.9f};
+		t.m.s = Diffuse;
+		t.m.e = 12.f;
+		primitive_vector.push_back(t);
+	
+//		camera.o = (Vector){50.f, 45.f, 205.6f};
+//		camera.t = (Vector){50.f, 44.957388f, 200.6f};
+
+		camera.o = (Vector){100.f, 200.f, 200.f};
+		camera.t = (Vector){50.f, 50.f, 50.f};
+
 	}
 	
 	void loadJson(const char *f) {
@@ -385,7 +423,8 @@ struct OpenCL {
 		
 		width = 1024;
 		height = 768;
-//		width = height = 4;
+		width /= 1;
+		height /= 1;
 	}
 	
 	void createTexture() {
@@ -476,7 +515,6 @@ struct OpenCL {
 			runKernel->setArg(argc++, prim_b);
 			runKernel->setArg(argc++, scene->primitive_vector.size());
 			runKernel->setArg(argc++, camera_b);
-			runKernel->setArg(argc++, sizeof(Primitive) * scene->primitive_vector.size(), NULL);
 			runKernel->setArg(argc++, (random_state_t){random(), random()});
 			runKernel->setArg(argc++, frame_b);
 #ifdef INTEROP
@@ -487,7 +525,6 @@ struct OpenCL {
 			runKernel->setArg(argc++, samples++);
 			runKernel->setArg(argc++, bvh_b);
 			runKernel->setArg(argc++, scene->bvhTree->bvh_vec.size());
-			runKernel->setArg(argc++, sizeof(BVH) * scene->bvhTree->bvh_vec.size(), NULL);
 
 #ifdef INTEROP
 			queue.enqueueAcquireGLObjects(&glObjects);
@@ -568,7 +605,13 @@ void idle() {
 	openCL->executeKernel();
 
 	float seconds = 1000.f * (wallclock() - tick);
-	sprintf(label, "size: (%d, %d), samples: %d, frame: %0.3fms", openCL->width, openCL->height, openCL->samples, seconds);
+	sprintf(label, "size: (%d, %d), prim: %ld, samples: %d, frame: %0.3fms", 
+		openCL->width,
+		openCL->height,
+		openCL->scene->primitive_vector.size(),
+		openCL->samples,
+		seconds);
+	printf("%s\n", label);
 
 #ifndef INTEROP
 	glBindTexture(GL_TEXTURE_RECTANGLE_ARB, openCL->textid);
@@ -598,7 +641,8 @@ void glInit(int argc, char **argv) {
 
 int main(int argc, char **argv) {
 	Scene *scene = new Scene();
-	scene->loadJson("scene.json");
+//	scene->loadJson("cornell.json");
+	scene->testScene();
 	scene->buildBVH();
 	
 	glInit(argc, argv);

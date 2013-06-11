@@ -4,7 +4,7 @@
 #include "geometry.h"
 
 // optimized; assumes ray direction is normalized (so the 'a' term can be 1.f)
-inline float sphere_distance(__local const Sphere *s, const Ray *ray)
+inline float sphere_distance(__global const Sphere *s, const Ray *ray)
 {
 	// inverting this saves negating b
 	Vector v = s->c - ray->o;
@@ -25,7 +25,7 @@ inline float sphere_distance(__local const Sphere *s, const Ray *ray)
 	return FLT_MAX;
 }
 
-inline Vector sphere_surfacepoint(__local const Sphere *s, const float u, const float v)
+inline Vector sphere_surfacepoint(__global const Sphere *s, const float u, const float v)
 {
 	const float z = 1.f - 2.f * u;				// z in [-1, 1] -> z = cos w
 	const float r = sqrt(max(0.f, 1 - z * z));	// sqrt(1 - x^2) -> sin w
@@ -36,13 +36,13 @@ inline Vector sphere_surfacepoint(__local const Sphere *s, const float u, const 
 	return s->c + s->r * (Vector)(x, y, x);
 }
 
-inline Vector sphere_normal(__local const Sphere *s, const Vector hit_point)
+inline Vector sphere_normal(__global const Sphere *s, const Vector hit_point)
 {
 	return normalize(hit_point - s->c);
 }
 
 /*
-inline Vector sphere_tangent(__local const Sphere *s, const Vector hit_point)
+inline Vector sphere_tangent(__global const Sphere *s, const Vector hit_point)
 {
 	Vector u = hit_point - s->c;
 	

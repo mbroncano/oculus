@@ -2,8 +2,9 @@
 #define GEOMETRY_H
 
 #define INTEROP
-#define MAIN_DEVICE CL_DEVICE_TYPE_GPU
+#define MAIN_DEVICE CL_DEVICE_TYPE_CPU
 //#define DEBUG
+//#define USE_BVH
 
 #ifdef __IS_KERNEL
 
@@ -81,7 +82,7 @@ typedef struct {
 typedef struct {
 	int left;
 	int right;
-	int pid;
+	int pid[4];
 	Vector min, max;
 } BVH;
 
