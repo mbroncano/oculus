@@ -9,6 +9,8 @@
 #ifndef Oculus_geometry_h
 #define Oculus_geometry_h
 
+#define P_NONE UINT_MAX
+
 #ifdef __IS_KERNEL__
 
 #define EPSILON 1e-2f
@@ -30,6 +32,13 @@ __constant const Vector vec_x =		(Vector)(1.f, 0.f, 0.f);
 __constant const Vector vec_one =	(Vector)(1.f, 1.f, 1.f);
 __constant const Vector ambient =	(Vector)(.1f, .1f, .1f);
 
+typedef struct {
+    uint pid;    // primitive index
+    uint skip;   // the distance to the right node
+    Vector min, max;
+} BVHNode;
+
+
 #else
 
 #include <OpenCL/OpenCL.h>
@@ -45,6 +54,12 @@ typedef cl_uint2 random_state_t;
 typedef cl_float2 textcoord_t;
 
 const Vector vec_zero = (Vector){{0.f, 0.f, 0.f}};
+
+typedef struct {
+    cl_uint pid;    // primitive index
+    cl_uint skip;   // the distance to the right node
+    Vector min, max;
+} BVHNode;
 
 #endif
 
@@ -87,12 +102,5 @@ typedef struct {
 	Material m;
 	PrimitiveType t;
 } Primitive;
-
-typedef struct {
-	int left;
-	int right;
-	int pid[4];
-	Vector min, max;
-} BVH;
 
 #endif

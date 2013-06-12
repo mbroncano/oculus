@@ -9,32 +9,37 @@
 #ifndef Oculus_opencl_debug_h
 #define Oculus_opencl_debug_h
 
+using std::cout;
+using std::cerr;
+using std::string;
+using std::endl;
+
 static void platformDump(Platform *p) {
-    std::cout
-    << "[CL]  Platform: " << p->getInfo<CL_PLATFORM_NAME>() << std::endl
-    << "[CL]  * Vendor: " << p->getInfo<CL_PLATFORM_VENDOR>() << std::endl
-    << "[CL]  * Version: " << p->getInfo<CL_PLATFORM_VERSION>() << std::endl
-    << "[CL]  * Profile: " << p->getInfo<CL_PLATFORM_PROFILE>() << std::endl
-    << "[CL]  * Extensions: " << p->getInfo<CL_PLATFORM_EXTENSIONS>() << std::endl;
+    cout
+    << "[CL]  Platform: " << p->getInfo<CL_PLATFORM_NAME>() << endl
+    << "[CL]  * Vendor: " << p->getInfo<CL_PLATFORM_VENDOR>() << endl
+    << "[CL]  * Version: " << p->getInfo<CL_PLATFORM_VERSION>() << endl
+    << "[CL]  * Profile: " << p->getInfo<CL_PLATFORM_PROFILE>() << endl
+    << "[CL]  * Extensions: " << p->getInfo<CL_PLATFORM_EXTENSIONS>() << endl;
 }
 
 static void deviceDump(Device *d) {
-    std::cout
-    << "[CL]  Device: " << d->getInfo<CL_DEVICE_NAME>() << std::endl
-    << "[CL]  * Type: " << d->getInfo<CL_DEVICE_TYPE>() << std::endl
-    << "[CL]  * Version: " << d->getInfo<CL_DEVICE_VERSION>() << std::endl
-    << "[CL]  * Extensions: " << d->getInfo<CL_DEVICE_EXTENSIONS>() << std::endl
-    << "[CL]  * Compute units: " << d->getInfo<CL_DEVICE_MAX_COMPUTE_UNITS>() << std::endl
-    << "[CL]  * Global mem size: " << d->getInfo<CL_DEVICE_GLOBAL_MEM_SIZE>() << std::endl
-    << "[CL]  * Local mem size: " << d->getInfo<CL_DEVICE_LOCAL_MEM_SIZE>() << std::endl
-    << "[CL]  * Work groups: " << d->getInfo<CL_DEVICE_MAX_WORK_GROUP_SIZE>() << std::endl
-    << "[CL]  * Image support: " << d->getInfo<CL_DEVICE_IMAGE_SUPPORT>() << std::endl;
+    cout
+    << "[CL]  Device: " << d->getInfo<CL_DEVICE_NAME>() << endl
+    << "[CL]  * Type: " << d->getInfo<CL_DEVICE_TYPE>() << endl
+    << "[CL]  * Version: " << d->getInfo<CL_DEVICE_VERSION>() << endl
+    << "[CL]  * Extensions: " << d->getInfo<CL_DEVICE_EXTENSIONS>() << endl
+    << "[CL]  * Compute units: " << d->getInfo<CL_DEVICE_MAX_COMPUTE_UNITS>() << endl
+    << "[CL]  * Global mem size: " << d->getInfo<CL_DEVICE_GLOBAL_MEM_SIZE>() << endl
+    << "[CL]  * Local mem size: " << d->getInfo<CL_DEVICE_LOCAL_MEM_SIZE>() << endl
+    << "[CL]  * Work groups: " << d->getInfo<CL_DEVICE_MAX_WORK_GROUP_SIZE>() << endl
+    << "[CL]  * Image support: " << d->getInfo<CL_DEVICE_IMAGE_SUPPORT>() << endl;
 }
 
 #define HAS_MASK(a, mask) if ((a & mask) == mask)
 
 static const char *kernelArgAddress(unsigned int a) {
-    std::string ret;
+    string ret;
     
     HAS_MASK(a, CL_KERNEL_ARG_ADDRESS_GLOBAL) ret += "global ";
     HAS_MASK(a, CL_KERNEL_ARG_ADDRESS_LOCAL) ret += "local ";
@@ -45,7 +50,7 @@ static const char *kernelArgAddress(unsigned int a) {
 }
 
 static const char *kernelArgAccess(unsigned int a) {
-    std::string ret;
+    string ret;
     
     HAS_MASK(a, CL_KERNEL_ARG_ACCESS_READ_ONLY) ret += "read ";
     HAS_MASK(a, CL_KERNEL_ARG_ACCESS_WRITE_ONLY) ret += "write ";
@@ -56,7 +61,7 @@ static const char *kernelArgAccess(unsigned int a) {
 }
 
 static const char *kernelArgType(unsigned long long a) {
-    std::string ret;
+    string ret;
     
     HAS_MASK(a, CL_KERNEL_ARG_TYPE_NONE) ret += "none ";
     HAS_MASK(a, CL_KERNEL_ARG_TYPE_CONST) ret += "const ";
@@ -67,18 +72,18 @@ static const char *kernelArgType(unsigned long long a) {
 }
 
 static void kernelArgDump(Kernel *k, int i) {
-    std::cout
-    << "[CL]  = Name: " << k->getArgInfo<CL_KERNEL_ARG_NAME>(i) << std::endl
-    << "[CL]    = Type: " << k->getArgInfo<CL_KERNEL_ARG_TYPE_NAME>(i) << std::endl
-    << "[CL]    = Type qualifier: " << kernelArgType(k->getArgInfo<CL_KERNEL_ARG_TYPE_QUALIFIER>(i)) << std::endl
-    << "[CL]    = Access qualifier: " << kernelArgAccess(k->getArgInfo<CL_KERNEL_ARG_ACCESS_QUALIFIER>(i)) << std::endl
-    << "[CL]    = Address qualifier: " << kernelArgAddress(k->getArgInfo<CL_KERNEL_ARG_ADDRESS_QUALIFIER>(i)) << std::endl;
+    cout
+    << "[CL]  = Name: " << k->getArgInfo<CL_KERNEL_ARG_NAME>(i) << endl
+    << "[CL]    = Type: " << k->getArgInfo<CL_KERNEL_ARG_TYPE_NAME>(i) << endl
+    << "[CL]    = Type qualifier: " << kernelArgType(k->getArgInfo<CL_KERNEL_ARG_TYPE_QUALIFIER>(i)) << endl
+    << "[CL]    = Access qualifier: " << kernelArgAccess(k->getArgInfo<CL_KERNEL_ARG_ACCESS_QUALIFIER>(i)) << endl
+    << "[CL]    = Address qualifier: " << kernelArgAddress(k->getArgInfo<CL_KERNEL_ARG_ADDRESS_QUALIFIER>(i)) << endl;
 }
 
 static void kernelDump(Kernel *k) {
-    std::cout
-    << "[CL]  Kernel: " << k->getInfo<CL_KERNEL_FUNCTION_NAME>() << std::endl
-    << "[CL]  * Args: " << k->getInfo<CL_KERNEL_NUM_ARGS>() << std::endl;
+    cout
+    << "[CL]  Kernel: " << k->getInfo<CL_KERNEL_FUNCTION_NAME>() << endl
+    << "[CL]  * Args: " << k->getInfo<CL_KERNEL_NUM_ARGS>() << endl;
     // it doesn't work properly
     /*
      for (int i = 0; i < k->getInfo<CL_KERNEL_NUM_ARGS>(); i ++) {
@@ -96,15 +101,15 @@ static const char *programBuildStatus(int s) {
 }
 
 static void programBuildDump(Program *program, Device *d) {
-    std::cerr << "[CL]  Build Status: " << programBuildStatus(program->getBuildInfo<CL_PROGRAM_BUILD_STATUS>(*d)) << std::endl;
-    std::cerr << "[CL]  Build Options: " << program->getBuildInfo<CL_PROGRAM_BUILD_OPTIONS>(*d) << std::endl;
-    std::string log = program->getBuildInfo<CL_PROGRAM_BUILD_LOG>(*d);
+    cerr << "[CL]  Build Status: " << programBuildStatus(program->getBuildInfo<CL_PROGRAM_BUILD_STATUS>(*d)) << endl;
+    cerr << "[CL]  Build Options: " << program->getBuildInfo<CL_PROGRAM_BUILD_OPTIONS>(*d) << endl;
+    string log = program->getBuildInfo<CL_PROGRAM_BUILD_LOG>(*d);
     if (log.size() > 0)
-        std::cerr << "[CL]  Build Log\n\n" << program->getBuildInfo<CL_PROGRAM_BUILD_LOG>(*d) << std::endl;
+        cerr << "[CL]  Build Log\n\n" << program->getBuildInfo<CL_PROGRAM_BUILD_LOG>(*d) << endl;
 }
 
 static void errorDump(Error err) {
-    std::cerr << "[CL]  Error: " << err.what() << "(" << err.err() << ")" << std::endl;
+    cerr << "[CL]  Error: " << err.what() << "(" << err.err() << ")" << endl;
 }
 
 

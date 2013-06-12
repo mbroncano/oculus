@@ -12,6 +12,10 @@
 #include "geometry.h"
 #include "util.h"
 #include <vector>
+#include <iostream>
+
+using std::ostream;
+using std::endl;
 
 struct BBox {
     Vector min, max;
@@ -34,11 +38,11 @@ struct BBox {
 };
     
 struct BVHTreeNode {
-    int primitiveIndex;
+    size_t primitiveIndex;
     BVHTreeNode *left, *right;
     BBox bbox;
     
-    BVHTreeNode() : primitiveIndex(0), left(0), right(0) {}
+    BVHTreeNode() : primitiveIndex(P_NONE), left(nullptr), right(nullptr) {}
     
     BVHTreeNode(Primitive p, int i) : primitiveIndex(i), left(0), right(0) {
         switch(p.t) {
@@ -51,20 +55,25 @@ struct BVHTreeNode {
                 bbox.max = fmax(p.triangle.p[0], p.triangle.p[1], p.triangle.p[2]);
                 break;
             default:
-                throw "[BVHTreeNode] Unknown primtive type";
+                throw "[BVHTreeNode] Unknown primitive type";
         }
     }
+    
+    bool isLeaf() const { return primitiveIndex != P_NONE; }
+    
 };
 
 typedef std::vector<BVHTreeNode *> node_vec_t;
+typedef std::vector<BVHNode> bvh_vec_t;
     
 struct BVHTree {
     std::vector<BVHTreeNode *> primitiveVec;
     BVHTreeNode *rootNode;
-    std::vector<BVH> bvh_vec;
+    bvh_vec_t bvh_vec;
     
     BVHTree(std::vector<Primitive>& primitives);
-    BVHTreeNode *Build(node_vec_t &list, node_vec_t::iterator start, node_vec_t::iterator end, int axis = 0) const;
+    BVHTreeNode *Build(node_vec_t &list, size_t start, size_t end) const;
+    void DumpTree(BVHTreeNode *node, bvh_vec_t& list, int depth = 0) const;
 };
     
 #endif /* defined(__Oculus__bvhtree__) */

@@ -36,6 +36,18 @@ static Vector operator-(const Vector &a, const float &b) {
 	return (Vector){{a.x - b, a.y - b, a.z - b}};
 }
 
+static Vector operator*(const Vector &a, const Vector &b) {
+	return (Vector){{a.x * b.x, a.y * b.x, a.z * b.x}};
+}
+
+static Vector operator*(const Vector &a, const float &b) {
+	return (Vector){{a.x * b, a.y * b, a.z * b}};
+}
+
+static Vector operator/(const Vector &a, const float &b) {
+	return (Vector){{a.x / b, a.y / b, a.z / b}};
+}
+
 static Vector fmin(const Vector &a, const Vector &b)
 {
 	Vector r;
@@ -77,13 +89,6 @@ static std::ostream& operator<<(std::ostream& os, const Vector& a)
 	os << std::setiosflags(std::ios::fixed) << std::setprecision(1);
 	os << "(" << a.x << ", " << a.y << ", " << a.z << ")";
 	return os;
-}
-
-static std::ostream& operator<<(std::ostream& os, const BVH& a)
-{
-    os << "[flat] min" << a.min << " max" << a.max << " l:" << a.left << " r:" << a.right;
-    os << " pid:" << a.pid[0] << " " << a.pid[1] << " " << a.pid[2] << " " << a.pid[3];
-    return os;
 }
 
 static std::ostream& operator<<(std::ostream& os, const Primitive& a)

@@ -25,7 +25,7 @@ Vector Scene::getVector(JSON_Array *vector_array) {
 }
 
 void Scene::testScene() {
-    int n = 2;
+    int n = 10;
     int r = 100/n/2 - 1;
     int ofs = 100/n;
     int cofs = ofs/2;
@@ -60,6 +60,10 @@ void Scene::testScene() {
 void Scene::loadJson(const char *f) {
     try {
         JSON_Value *_root = json_parse_file(f);
+        if (!json_value_get_type(_root)) {
+            throw "error parsing file";
+        }
+        
         if (json_value_get_type(_root) != JSONObject) {
             throw "missing root";
         }

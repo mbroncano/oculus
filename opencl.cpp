@@ -55,8 +55,8 @@ OpenCL::OpenCL() {
     
     width = 1024;
     height = 768;
-    width /= 4;
-    height /= 4;
+    width /= 1;
+    height /= 1;
 }
 
 void OpenCL::createTexture() {
@@ -123,7 +123,7 @@ void OpenCL::createBuffers() {
         camera_b = Buffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(Camera), &scene->camera);
         frame_b = Buffer(context, CL_MEM_READ_WRITE, width * height * sizeof(Vector));
         ray_b = Buffer(context, CL_MEM_READ_WRITE, width * height * sizeof(Ray));
-        bvh_b = Buffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(BVH) * scene->bvhTree->bvh_vec.size(), &scene->bvhTree->bvh_vec[0]);
+        bvh_b = Buffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(BVHNode) * scene->bvhTree->bvh_vec.size(), &scene->bvhTree->bvh_vec[0]);
         
 #ifdef INTEROP
         image_b = ImageGL(context, CL_MEM_WRITE_ONLY, GL_TEXTURE_RECTANGLE_ARB, 0, textid);

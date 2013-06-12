@@ -68,20 +68,20 @@ static Vector primitive_normal(__global const Primitive *p, const Vector hit_poi
 
 inline bool bvh_intersect_component(float a1, float a2, float b1, float b2)
 {
-	// assumes  b1 < b2
-	float t1 = min(a1, a2);
+	// sorts a1, s2 - assumes b1 < b2
+/*	float t1 = min(a1, a2);
 	float t2 = max(a1, a2);
-
 	float2 t = (float2)(t1, t2);
+*/
+    float2 t = (float2)(a1, a2);    
 	float2 b = (float2)(b1, b2);
 	float2 m = min(t, b);
-	int2 x1 = (m == t);
-	int2 x2 = (m == b);
+	int2 eq = (m == t) + (m == b);
 	
-	return (x1.x + x1.y + x2.x + x2.y);
+	return (eq.x + eq.y);
 }
 
-inline bool bvh_intersect(const Ray *r, __global const BVH *bvh)
+inline bool bvh_intersect(const Ray *r, __global const BVHNode *bvh)
 {
 	Vector sd = sign(r->d) * FLT_MAX;
 
@@ -89,8 +89,6 @@ inline bool bvh_intersect(const Ray *r, __global const BVH *bvh)
 			bvh_intersect_component(r->o.s1, sd.s1, bvh->min.s1, bvh->max.s1) ||
 			bvh_intersect_component(r->o.s2, sd.s2, bvh->min.s2, bvh->max.s2);
 }
-
-#define MAX_STACK 50
 
 inline float scene_primitive_distance(__global const Primitive *primitives, const Ray *r, const int index, __global Primitive **s, const float distance)
 {
@@ -110,37 +108,24 @@ static float scene_intersect(__global const Primitive *primitives, const int num
 }
 
 // TODO: implement shadow ray hit: leaves on the first hit which is not the light
-static float scene_intersect_bvh(__global const Primitive *primitives, const int numprimitives, const Ray *r, __global Primitive **s, __global BVH *bvh)
+static float scene_intersect_bvh(__global const Primitive *primitives, const int numprimitives, const Ray *r, __global Primitive **s, __global BVHNode *bvh)
 {
 	float distance = FLT_MAX;
 	
-	__global BVH *stack_s[MAX_STACK]; // BE CAREFUL WITH THIS!!!
-	__global BVH **stack_p = stack_s;
-
-	__global BVH *node = bvh;
-	*stack_p++ = node;
-
-	while (stack_p != stack_s) {
-		node = *--stack_p;
-		if (bvh_intersect(r, node)) {
-
-			if (node->left != -1) {
-				if ((node->right != -1) && bvh_intersect(r, bvh + node->right)) {
-					*stack_p++ = bvh + node->right;
-				}
-				
-				if (bvh_intersect(r, bvh + node->left)) {
-					*stack_p++ = bvh + node->left;
-				}
-			} else {
-				distance = (node->pid[0] != -1)? scene_primitive_distance(primitives, r, node->pid[0], s, distance) : distance;
-				distance = (node->pid[1] != -1)? scene_primitive_distance(primitives, r, node->pid[1], s, distance) : distance;
-				distance = (node->pid[2] != -1)? scene_primitive_distance(primitives, r, node->pid[2], s, distance) : distance;
-				distance = (node->pid[3] != -1)? scene_primitive_distance(primitives, r, node->pid[3], s, distance) : distance;
-			}
-		}
-	}
-
+    int cur = 0;
+    int end = bvh[0].skip;
+    
+    while (cur < end) {
+        __global BVHNode *n = bvh + cur;
+        if (bvh_intersect(r, n)) {
+            if (n->pid != P_NONE)
+                distance = scene_primitive_distance(primitives, r, n->pid, s, distance);
+            cur ++;
+        } else {
+            cur = n->skip;
+        }
+    }
+    
 	return distance;
 } 
 
@@ -197,7 +182,7 @@ static Vector scene_illumination(
 	const Vector hit_point,
 	const Vector normal,
 	const float cos_i,
-	__global BVH *bvh
+	__global BVHNode *bvh
 	)
 {
 	Vector illu = vec_zero;
@@ -237,7 +222,7 @@ static Vector scene_sample(
 	const int numprimitives,
 	random_state_t *rnd,
 	const Ray *ray,
-	__global BVH *bvh
+	__global BVHNode *bvh
 )
 {
 	int depth = 6;
@@ -351,7 +336,7 @@ static Ray camera_genray( __global const Camera *camera, float x, float y, int w
 }
 
 __kernel void raytracer(
-	__global Primitive *primitives, 
+	__global const Primitive *primitives,
 	int numprimitives,
 	__global const Camera *camera,
 	random_state_t seed,
@@ -362,7 +347,7 @@ __kernel void raytracer(
 	__global Pixel *rgb,
 #endif
 	unsigned int samples,
-	__global BVH *bvh,
+	__global const BVHNode *bvh,
 	int numbvh
 	)
 {
