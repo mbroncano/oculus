@@ -1,3 +1,11 @@
+//
+//  triangle.h
+//  Oculus
+//
+//  Created by Manuel Broncano Rodriguez on 6/12/13.
+//  Copyright (c) 2013 Manuel Broncano Rodriguez. All rights reserved.
+//
+
 #ifndef _TRIANGLE_H
 #define _TRIANGLE_H
 

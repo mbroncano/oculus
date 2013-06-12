@@ -1,3 +1,11 @@
+//
+//  ray.h
+//  Oculus
+//
+//  Created by Manuel Broncano Rodriguez on 6/12/13.
+//  Copyright (c) 2013 Manuel Broncano Rodriguez. All rights reserved.
+//
+
 #ifndef _RAY_H
 #define _RAY_H
 

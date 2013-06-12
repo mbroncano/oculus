@@ -1,3 +1,11 @@
+//
+//  random.h
+//  Oculus
+//
+//  Created by Manuel Broncano Rodriguez on 6/12/13.
+//  Copyright (c) 2013 Manuel Broncano Rodriguez. All rights reserved.
+//
+
 #ifndef _RANDOM_H
 #define _RANDOM_H
 
