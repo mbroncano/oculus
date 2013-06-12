@@ -1,5 +1,6 @@
-#define __IS_KERNEL
+#define __IS_KERNEL__
 
+#include "defs.h"
 #include "geometry.h"
 #include "sphere.h"
 #include "triangle.h"
@@ -135,25 +136,6 @@ static float scene_intersect_bvh(__global const Primitive *primitives, const int
 	return distance;
 } 
 
-/*
-// by some strange reason this is slower than intersecting with all primitives ...
-static float scene_intersect_shadow(__global const Primitive *primitives, const int numprimitives, const Ray *s_ray, __global const Primitive *l)
-{
-	float d = primitive_distance(l, s_ray);
-	bool shadow = false;
-	for(int i = 0; i < numprimitives; i++) {
-		if ((primitives + i) == l) continue;
-		if (primitive_distance(primitives + i, s_ray) < d) {
-			shadow = true;
-			break;
-		}
-	}
-
-	return shadow ? FLT_MAX : d;
-}
-*/
-
-
 inline float kdiff_lambert(const Ray *i, const Ray *o, const Vector normal)
 {
 	return max(0.f, dot(i->d, normal));
@@ -211,7 +193,6 @@ static Vector scene_illumination(
 	)
 {
 	Vector illu = vec_zero;
-//	Vector tangent = primitive_tangent(s, hit_point);
 	Vector tangent = cross(normal, normalize(r->d + 2.f * cos_i * normal));
 	
 	for (int i = 0; i < numprimitives; i++) {
@@ -361,7 +342,7 @@ static Ray camera_genray( __global const Camera *camera, float x, float y, int w
 	return (Ray){camera->o, normalize(d + zoom * vx * fx + zoom * vy * fy)};
 }
 
-kernel void raytracer(
+__kernel void raytracer(
 	__global Primitive *primitives, 
 	int numprimitives,
 	__global const Camera *camera,
