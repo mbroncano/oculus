@@ -54,14 +54,17 @@ inline float scene_primitive_distance(BUFFER_CONST_TYPE Primitive *primitives, c
 }
 
 // TODO: implement shadow ray hit: leaves on the first hit which is not the light
-static float scene_intersect(
+static bool scene_intersect(
     BUFFER_CONST_TYPE Primitive *primitives,
     const int numprimitives,
     const Ray *r,
     BUFFER_CONST_TYPE Primitive **s,
-    BUFFER_CONST_TYPE BVHNode *bvh)
+    BUFFER_CONST_TYPE BVHNode *bvh,
+    float *distance,
+    bool shadow_ray)
 {
-	float distance = FLT_MAX;
+    bool hit = false;
+    
 #ifdef USE_BVH
     int cur = 0;
     int end = bvh->skip;
@@ -69,8 +72,16 @@ static float scene_intersect(
     while (cur < end) {
         BUFFER_CONST_TYPE BVHNode *n = bvh + cur;
         if (bvh_intersect(r, n)) {
-            if (n->pid != P_NONE)
-                distance = scene_primitive_distance(primitives, r, n->pid, s, distance);
+            if (n->pid != P_NONE) {
+                BUFFER_CONST_TYPE Primitive *p = primitives + n->pid;
+                float d = primitive_distance(p, r);
+                if (d < *distance) {
+                    if (shadow_ray) return true;
+                    *distance = d;
+                    *s = p;
+                    hit = true;
+                }
+            }
             cur ++;
         } else {
             cur = n->skip;
@@ -78,12 +89,19 @@ static float scene_intersect(
     }
 #else
     for (int i = 0; i < numprimitives; i++) {
-		distance = scene_primitive_distance(primitives, r, i, s, distance);
+        BUFFER_CONST_TYPE Primitive *p = primitives + i;
+        float d = primitive_distance(p, r);
+        if (d < *distance) {
+            if (shadow_ray) return true;
+            *distance = d;
+            *s = p;
+            hit = true;
+        }
 	}
 #endif
     
-	return distance;
-} 
+	return hit;
+}
 
 inline float kdiff_lambert(const Ray *i, const Ray *o, const Vector normal)
 {
@@ -147,17 +165,18 @@ static Vector scene_illumination(
 	for (int i = 0; i < numprimitives; i++) {
 		BUFFER_CONST_TYPE Primitive *l = primitives + i;
 		if (l->m.e != 0.f) {
-			Vector light_hit = primitive_surfacepoint(l, randomf(rnd), randomf(rnd));
+			Vector light_hit = primitive_surfacepoint(l, randomf(rnd), randomf(rnd)) - normal * EPSILON; // make sure it won't collide with the primitive
 			
 			Ray s_ray = {hit_point + normal * EPSILON, normalize(light_hit - hit_point)};
 
 			BUFFER_CONST_TYPE Primitive *h;
-			float d = scene_intersect(primitives, numprimitives, &s_ray, &h, bvh);
-			if (h == l) {
+            float light_dist = length(light_hit - hit_point);
+			bool hit = scene_intersect(primitives, numprimitives, &s_ray, &h, bvh, &light_dist, true);
+			if (!hit) {
 				Vector emission = l->m.c * l->m.e;
 
 				// Phong illumination model http://en.wikipedia.org/wiki/Phong_reflection_model
-				float attenuation = 2.f * sqrt(d);
+				float attenuation = 2.f * sqrt(light_dist);
 				float kdiff = kdiff_lambert(&s_ray, r, normal);
 				float kspec = kspec_blinnphong(&s_ray, r, normal, tangent);
 
@@ -185,8 +204,9 @@ static Vector scene_sample(
 
 	while (--depth) {
 		BUFFER_CONST_TYPE Primitive *s = 0;
-		float distance = scene_intersect(primitives, numprimitives, &r, &s, bvh);
-		if (distance == FLT_MAX) {
+		float distance = FLT_MAX;
+        bool hit = scene_intersect(primitives, numprimitives, &r, &s, bvh, &distance, false);
+		if (!hit) {
 			return sample;
 		}
 		

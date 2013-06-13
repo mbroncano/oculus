@@ -43,9 +43,9 @@ void Scene::testScene() {
             }
     
     Primitive t;
-    t.triangle.p[0] = (Vector){{20.f, 180.f, 20.f}};
-    t.triangle.p[1] = (Vector){{20.f, 180.f, 80.f}};
-    t.triangle.p[2] = (Vector){{80.f, 180.f, 20.f}};
+    t.triangle.p[0] = (Vector){{40.f, 180.f, 40.f}};
+    t.triangle.p[1] = (Vector){{40.f, 180.f, 60.f}};
+    t.triangle.p[2] = (Vector){{60.f, 180.f, 40.f}};
     t.t = triangle;
     t.m.c = (Vector){{0.9f, 0.9f, 0.9f}};
     t.m.s = Diffuse;
