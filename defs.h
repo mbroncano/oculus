@@ -12,6 +12,9 @@
 #define INTEROP
 #define MAIN_DEVICE CL_DEVICE_TYPE_CPU
 //#define DEBUG
-#define USE_BVH
+//#define USE_BVH
+
+#define BUFFER_CONST_TYPE __global
+//#define BUFFER_CONST_TYPE __constant
 
 #endif

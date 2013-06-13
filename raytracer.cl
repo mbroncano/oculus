@@ -10,63 +10,12 @@
 
 #include "defs.h"
 #include "geometry.h"
-#include "sphere.h"
-#include "triangle.h"
+#include "primitives.h"
 #include "random.h"
 #include "ray.h"
 
-#ifdef DEBUG
-static void dump_primitives(__global const Primitive *primitives, int num)
-{
-	for (int i = 0; i < num; i ++) {
-		__global const Primitive *p = primitives + i;
-		
-		if (p->t == sphere) {
-			printf("[%d] s: (%.2f, %.2f, %.2f), %.2f\n", i, p->sphere.c.x, p->sphere.c.y ,p->sphere.c.z, p->sphere.r);
-		} else if (p->t == triangle) {
-			Vector n = triangle_normal(&p->triangle, vec_zero);
-			printf("[%d] t: (%.2f, %.2f, %.2f), (%.2f, %.2f, %.2f), (%.2f, %.2f, %.2f), n[%.2f, %.2f, %.2f]\n", i, 
-			p->triangle.p[0].x, p->triangle.p[0].y, p->triangle.p[0].z,
-			p->triangle.p[1].x, p->triangle.p[1].y, p->triangle.p[1].z,
-			p->triangle.p[2].x, p->triangle.p[2].y, p->triangle.p[2].z,
-			n.x, n.y, n.z
-			);
-		}
-	}
-}
-#endif
 
-static float primitive_distance(__global const Primitive *p, const Ray *r)
-{
-	if (p->t == sphere) {
-		return sphere_distance(&p->sphere, r);
-	} else if (p->t == triangle) {
-		return triangle_distance(&p->triangle, r);
-	}
-	return 0.f;
-}
-
-static Vector primitive_surfacepoint(__global const Primitive *p, const float a, const float b)
-{
-	if (p->t == sphere) {
-		return sphere_surfacepoint(&p->sphere, a, b);
-	} else if (p->t == triangle) {
-		return triangle_surfacepoint(&p->triangle, a, b);
-	}
-	return vec_zero;
-}
-
-static Vector primitive_normal(__global const Primitive *p, const Vector hit_point)
-{
-	if (p->t == sphere) {
-		return sphere_normal(&p->sphere, hit_point);
-	} else if(p->t == triangle) {
-		return triangle_normal(&p->triangle, hit_point);
-	}
-	return vec_zero;
-}
-
-inline bool bvh_intersect(const Ray *r, __global const BVHNode *bvh)
+inline bool bvh_intersect(const Ray *r, BUFFER_CONST_TYPE BVHNode *bvh)
 {
 	Vector sd = sign(r->d) * FLT_MAX;
 
@@ -90,39 +39,35 @@ inline bool bvh_intersect(const Ray *r, __global const BVHNode *bvh)
     float2 m2 = min(r2, b2);
     
     int2 eq0 = (m0 == r0) + (m0 == b0);
-    int2 eq1 = (m0 == r0) + (m0 == b0);
-    int2 eq2 = (m0 == r0) + (m0 == b0);
+    int2 eq1 = (m1 == r1) + (m1 == b1);
+    int2 eq2 = (m2 == r2) + (m2 == b2);
     
     return eq0.x || eq0.y || eq1.x || eq1.y || eq2.x || eq2.y;
 }
 
-inline float scene_primitive_distance(__global const Primitive *primitives, const Ray *r, const int index, __global Primitive **s, const float distance)
+inline float scene_primitive_distance(BUFFER_CONST_TYPE Primitive *primitives, const Ray *r, const int index, BUFFER_CONST_TYPE Primitive **s, const float distance)
 {
-	__global Primitive *p = primitives + index;
+	BUFFER_CONST_TYPE Primitive *p = primitives + index;
 	float d = min(distance, primitive_distance(p, r));
 	*s = (d != distance)? p : *s;
 	return d;
 }
 
-static float scene_intersect(__global const Primitive *primitives, const int numprimitives, const Ray *r, __global Primitive **s)
-{
-	float distance = FLT_MAX;
-	for (int i = 0; i < numprimitives; i++) {
-		distance = scene_primitive_distance(primitives, r, i, s, distance);
-	}
-	return distance;
-}
-
 // TODO: implement shadow ray hit: leaves on the first hit which is not the light
-static float scene_intersect_bvh(__global const Primitive *primitives, const int numprimitives, const Ray *r, __global Primitive **s, __global BVHNode *bvh)
+static float scene_intersect(
+    BUFFER_CONST_TYPE Primitive *primitives,
+    const int numprimitives,
+    const Ray *r,
+    BUFFER_CONST_TYPE Primitive **s,
+    BUFFER_CONST_TYPE BVHNode *bvh)
 {
 	float distance = FLT_MAX;
-	
+#ifdef USE_BVH
     int cur = 0;
     int end = bvh->skip;
     
     while (cur < end) {
-        __global BVHNode *n = bvh + cur;
+        BUFFER_CONST_TYPE BVHNode *n = bvh + cur;
         if (bvh_intersect(r, n)) {
             if (n->pid != P_NONE)
                 distance = scene_primitive_distance(primitives, r, n->pid, s, distance);
@@ -131,6 +76,11 @@ static float scene_intersect_bvh(__global const Primitive *primitives, const int
             cur = n->skip;
         }
     }
+#else
+    for (int i = 0; i < numprimitives; i++) {
+		distance = scene_primitive_distance(primitives, r, i, s, distance);
+	}
+#endif
     
 	return distance;
 } 
@@ -179,34 +129,30 @@ inline float kspec_heidrich_seidel(const Ray *i, const Ray *o, const Vector norm
 }
 */
 static Vector scene_illumination(
-	__global const Primitive *primitives,
+	BUFFER_CONST_TYPE Primitive *primitives,
 	const int numprimitives,
 	random_state_t *rnd,
 	
-	__global const Primitive *s,
+	BUFFER_CONST_TYPE Primitive *s,
 	const Ray *r,
 	const Vector hit_point,
 	const Vector normal,
 	const float cos_i,
-	__global BVHNode *bvh
+	BUFFER_CONST_TYPE BVHNode *bvh
 	)
 {
 	Vector illu = vec_zero;
 	Vector tangent = cross(normal, normalize(r->d + 2.f * cos_i * normal));
 	
 	for (int i = 0; i < numprimitives; i++) {
-		__global const Primitive *l = primitives + i;
+		BUFFER_CONST_TYPE Primitive *l = primitives + i;
 		if (l->m.e != 0.f) {
 			Vector light_hit = primitive_surfacepoint(l, randomf(rnd), randomf(rnd));
 			
 			Ray s_ray = {hit_point + normal * EPSILON, normalize(light_hit - hit_point)};
 
-			__global Primitive *h;
-#ifndef USE_BVH
-			float d = scene_intersect(primitives, numprimitives, &s_ray, &h);
-#else
-			float d = scene_intersect_bvh(primitives, numprimitives, &s_ray, &h, bvh);
-#endif
+			BUFFER_CONST_TYPE Primitive *h;
+			float d = scene_intersect(primitives, numprimitives, &s_ray, &h, bvh);
 			if (h == l) {
 				Vector emission = l->m.c * l->m.e;
 
@@ -224,11 +170,11 @@ static Vector scene_illumination(
 }
 
 static Vector scene_sample(
-	__global const Primitive *primitives,
+	BUFFER_CONST_TYPE Primitive *primitives,
 	const int numprimitives,
 	random_state_t *rnd,
 	const Ray *ray,
-	__global BVHNode *bvh
+	BUFFER_CONST_TYPE BVHNode *bvh
 )
 {
 	int depth = 6;
@@ -238,12 +184,8 @@ static Vector scene_sample(
 	Ray r = *ray;
 
 	while (--depth) {
-		__global Primitive *s = 0;
-#ifndef USE_BVH
-		float distance = scene_intersect(primitives, numprimitives, &r, &s);
-#else
-		float distance = scene_intersect_bvh(primitives, numprimitives, &r, &s, bvh);
-#endif
+		BUFFER_CONST_TYPE Primitive *s = 0;
+		float distance = scene_intersect(primitives, numprimitives, &r, &s, bvh);
 		if (distance == FLT_MAX) {
 			return sample;
 		}
@@ -327,7 +269,7 @@ static Vector scene_sample(
 	return sample;
 }
 
-static Ray camera_genray( __global const Camera *camera, float x, float y, int width, int height)
+static Ray camera_genray( BUFFER_CONST_TYPE Camera *camera, float x, float y, int width, int height)
 {
 	const float fov = radians(45.f);
 	const float fx = (float)x / width - 0.5f;
@@ -342,9 +284,9 @@ static Ray camera_genray( __global const Camera *camera, float x, float y, int w
 }
 
 __kernel void raytracer(
-	__global const Primitive *primitives,
+	BUFFER_CONST_TYPE Primitive *primitives,
 	int numprimitives,
-	__global const Camera *camera,
+	BUFFER_CONST_TYPE Camera *camera,
 	random_state_t seed,
 	__global Vector *frame,
 #ifdef INTEROP
@@ -353,7 +295,7 @@ __kernel void raytracer(
 	__global Pixel *rgb,
 #endif
 	unsigned int samples,
-	__global const BVHNode *bvh,
+	BUFFER_CONST_TYPE BVHNode *bvh,
 	int numbvh
 	)
 {
