@@ -105,8 +105,8 @@ void glInit(int argc, char **argv) {
 int main(int argc, char **argv)
 {
 	Scene *scene = new Scene();
-    scene->loadJson("cornell.json");
-	//scene->testScene();
+    //scene->loadJson("cornell.json");
+	scene->testScene();
 	scene->buildBVH();
 	
 	glInit(argc, argv);

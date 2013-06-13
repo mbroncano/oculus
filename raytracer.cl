@@ -66,28 +66,34 @@ static Vector primitive_normal(__global const Primitive *p, const Vector hit_poi
 	return vec_zero;
 }
 
-inline bool bvh_intersect_component(float a1, float a2, float b1, float b2)
-{
-	// sorts a1, s2 - assumes b1 < b2
-/*	float t1 = min(a1, a2);
-	float t2 = max(a1, a2);
-	float2 t = (float2)(t1, t2);
-*/
-    float2 t = (float2)(a1, a2);    
-	float2 b = (float2)(b1, b2);
-	float2 m = min(t, b);
-	int2 eq = (m == t) + (m == b);
-	
-	return (eq.x + eq.y);
-}
-
 inline bool bvh_intersect(const Ray *r, __global const BVHNode *bvh)
 {
 	Vector sd = sign(r->d) * FLT_MAX;
 
-	return 	bvh_intersect_component(r->o.s0, sd.s0, bvh->min.s0, bvh->max.s0) ||
-			bvh_intersect_component(r->o.s1, sd.s1, bvh->min.s1, bvh->max.s1) ||
-			bvh_intersect_component(r->o.s2, sd.s2, bvh->min.s2, bvh->max.s2);
+// the second version is faster
+//    float8 r_ = (float8)(r->o.s0, r->o.s1, r->o.s2, sd.s0, sd.s1, sd.s2, 0.f, 0.f);
+//    float8 b_ = (float8)(bvh->min.s0, bvh->min.s1, bvh->min.s2, bvh->max.s0, bvh->max.s1, bvh->max.s2, 0.f, 0.f);
+//    float8 m_ = min(r_, b_);
+//    int8 e = (m_ == r_) + (m_ == b_);
+//    return e.s0 || e.s1 || e.s2 || e.s3 || e.s4 || e.s5;
+
+    float2 r0 = (float2)(r->o.s0, sd.s0);
+    float2 r1 = (float2)(r->o.s1, sd.s1);
+    float2 r2 = (float2)(r->o.s2, sd.s2);
+    
+    float2 b0 = (float2)(bvh->min.s0, bvh->max.s0);
+    float2 b1 = (float2)(bvh->min.s1, bvh->max.s2);
+    float2 b2 = (float2)(bvh->min.s2, bvh->max.s1);
+    
+    float2 m0 = min(r0, b0);
+    float2 m1 = min(r1, b1);
+    float2 m2 = min(r2, b2);
+    
+    int2 eq0 = (m0 == r0) + (m0 == b0);
+    int2 eq1 = (m0 == r0) + (m0 == b0);
+    int2 eq2 = (m0 == r0) + (m0 == b0);
+    
+    return eq0.x || eq0.y || eq1.x || eq1.y || eq2.x || eq2.y;
 }
 
 inline float scene_primitive_distance(__global const Primitive *primitives, const Ray *r, const int index, __global Primitive **s, const float distance)

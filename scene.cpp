@@ -25,7 +25,7 @@ Vector Scene::getVector(JSON_Array *vector_array) {
 }
 
 void Scene::testScene() {
-    int n = 10;
+    int n = 4;
     int r = 100/n/2 - 1;
     int ofs = 100/n;
     int cofs = ofs/2;
