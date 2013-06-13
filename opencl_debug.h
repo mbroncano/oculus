@@ -160,11 +160,9 @@ static void kernelDump(Kernel *k) {
     << "[CL]  Kernel: " << k->getInfo<CL_KERNEL_FUNCTION_NAME>() << endl
     << "[CL]  * Args: " << k->getInfo<CL_KERNEL_NUM_ARGS>() << endl;
     return;
-    // it doesn't work properly
-    
-     for (int i = 0; i < k->getInfo<CL_KERNEL_NUM_ARGS>(); i ++) {
-         kernelArgDump(k, i);
-     }
+    for (int i = 0; i < k->getInfo<CL_KERNEL_NUM_ARGS>(); i ++) {
+        kernelArgDump(k, i);
+    }
 }
 
 static void programBuildDump(Program *program, Device *d) {

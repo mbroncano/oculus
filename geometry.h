@@ -38,6 +38,9 @@ typedef struct {
     Vector min, max;
 } BVHNode;
 
+typedef struct {
+    uint c[10];
+} counter_t;
 
 #else
 
@@ -60,6 +63,10 @@ typedef struct {
     cl_uint skip;   // the distance to the right node
     Vector min, max;
 } BVHNode;
+
+typedef struct {
+    cl_uint c[10];
+} counter_t;
 
 #endif
 

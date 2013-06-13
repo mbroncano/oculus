@@ -14,47 +14,88 @@
 #include "random.h"
 #include "ray.h"
 
+#ifdef PROFILING
+#define COUNTER(i) atomic_inc(&counter->c[i]);
+#else
+#define COUNTER(i)
+#endif
 
-inline bool bvh_intersect(const Ray *r, BUFFER_CONST_TYPE BVHNode *bvh)
+#ifdef USE_BVH
+inline bool bvh_intersect2(const Ray *r, BUFFER_CONST_TYPE BVHNode *bvh)
 {
-	Vector sd = sign(r->d) * FLT_MAX;
+	const Vector sd = sign(r->d) * FLT_MAX;
 
-// the second version is faster
-//    float8 r_ = (float8)(r->o.s0, r->o.s1, r->o.s2, sd.s0, sd.s1, sd.s2, 0.f, 0.f);
-//    float8 b_ = (float8)(bvh->min.s0, bvh->min.s1, bvh->min.s2, bvh->max.s0, bvh->max.s1, bvh->max.s2, 0.f, 0.f);
-//    float8 m_ = min(r_, b_);
-//    int8 e = (m_ == r_) + (m_ == b_);
-//    return e.s0 || e.s1 || e.s2 || e.s3 || e.s4 || e.s5;
-
-    float2 r0 = (float2)(r->o.s0, sd.s0);
-    float2 r1 = (float2)(r->o.s1, sd.s1);
-    float2 r2 = (float2)(r->o.s2, sd.s2);
+    const float2 r0 = (float2)(r->o.s0, sd.s0);
+    const float2 r1 = (float2)(r->o.s1, sd.s1);
+    const float2 r2 = (float2)(r->o.s2, sd.s2);
     
-    float2 b0 = (float2)(bvh->min.s0, bvh->max.s0);
-    float2 b1 = (float2)(bvh->min.s1, bvh->max.s2);
-    float2 b2 = (float2)(bvh->min.s2, bvh->max.s1);
+    const float2 b0 = (float2)(bvh->min.s0, bvh->max.s0);
+    const float2 b1 = (float2)(bvh->min.s1, bvh->max.s2);
+    const float2 b2 = (float2)(bvh->min.s2, bvh->max.s1);
     
-    float2 m0 = min(r0, b0);
-    float2 m1 = min(r1, b1);
-    float2 m2 = min(r2, b2);
+    const float2 m0 = min(r0, b0);
+    const float2 m1 = min(r1, b1);
+    const float2 m2 = min(r2, b2);
     
-    int2 eq0 = (m0 == r0) + (m0 == b0);
-    int2 eq1 = (m1 == r1) + (m1 == b1);
-    int2 eq2 = (m2 == r2) + (m2 == b2);
+    const int2 eq0 = (m0 == r0) + (m0 == b0);
+    const int2 eq1 = (m1 == r1) + (m1 == b1);
+    const int2 eq2 = (m2 == r2) + (m2 == b2);
     
     return eq0.x || eq0.y || eq1.x || eq1.y || eq2.x || eq2.y;
 }
 
-inline float scene_primitive_distance(BUFFER_CONST_TYPE Primitive *primitives, const Ray *r, const int index, BUFFER_CONST_TYPE Primitive **s, const float distance)
+inline bool bvh_intersect(const Ray *r, BUFFER_CONST_TYPE BVHNode *bvh)
 {
-	BUFFER_CONST_TYPE Primitive *p = primitives + index;
-	float d = min(distance, primitive_distance(p, r));
-	*s = (d != distance)? p : *s;
-	return d;
+    float t0 = -0.f;
+    float t1 = FLT_MAX;
+    
+    Vector bmin = bvh->min;
+    Vector bmax = bvh->max;
+    
+    float tmin, tmax, tymin, tymax, tzmin, tzmax;
+    if (r->d.x >= 0) {
+        tmin = (bmin.x - r->o.x) / r->d.x;
+        tmax = (bmax.x - r->o.x) / r->d.x;
+    }
+    else {
+        tmin = (bmax.x - r->o.x) / r->d.x;
+        tmax = (bmin.x - r->o.x) / r->d.x;
+    }
+    if (r->d.y >= 0) {
+        tymin = (bmin.y - r->o.y) / r->d.y;
+        tymax = (bmax.y - r->o.y) / r->d.y;
+    }
+    else {
+        tymin = (bmax.y - r->o.y) / r->d.y;
+        tymax = (bmin.y - r->o.y) / r->d.y;
+    }
+    if ( (tmin > tymax) || (tymin > tmax) )
+        return false;
+    if (tymin > tmin)
+        tmin = tymin;
+    if (tymax < tmax)
+        tmax = tymax;
+    if (r->d.z >= 0) {
+        tzmin = (bmin.z - r->o.z) / r->d.z;
+        tzmax = (bmax.z - r->o.z) / r->d.z;
+    }
+    else {
+        tzmin = (bmax.z - r->o.z) / r->d.z;
+        tzmax = (bmin.z - r->o.z) / r->d.z;
+    }
+    if ( (tmin > tzmax) || (tzmin > tmax) )
+        return false;
+    if (tzmin > tmin)
+        tmin = tzmin;
+    if (tzmax < tmax)
+        tmax = tzmax;
+    return ( (tmin < t1) && (tmax > t0) );
 }
 
-// TODO: implement shadow ray hit: leaves on the first hit which is not the light
+#endif
+
 static bool scene_intersect(
+    __global counter_t *counter,
     BUFFER_CONST_TYPE Primitive *primitives,
     const int numprimitives,
     const Ray *r,
@@ -71,15 +112,17 @@ static bool scene_intersect(
     
     while (cur < end) {
         BUFFER_CONST_TYPE BVHNode *n = bvh + cur;
+        COUNTER(1);
         if (bvh_intersect(r, n)) {
             if (n->pid != P_NONE) {
                 BUFFER_CONST_TYPE Primitive *p = primitives + n->pid;
-                float d = primitive_distance(p, r);
+                COUNTER(2);
+                const float d = primitive_distance(p, r);
                 if (d < *distance) {
-                    if (shadow_ray) return true;
+                    hit = true;
+                    if (shadow_ray) break;
                     *distance = d;
                     *s = p;
-                    hit = true;
                 }
             }
             cur ++;
@@ -90,12 +133,13 @@ static bool scene_intersect(
 #else
     for (int i = 0; i < numprimitives; i++) {
         BUFFER_CONST_TYPE Primitive *p = primitives + i;
-        float d = primitive_distance(p, r);
+        COUNTER(2);
+        const float d = primitive_distance(p, r);
         if (d < *distance) {
-            if (shadow_ray) return true;
+            hit = true;
+            if (shadow_ray) break;
             *distance = d;
             *s = p;
-            hit = true;
         }
 	}
 #endif
@@ -147,6 +191,7 @@ inline float kspec_heidrich_seidel(const Ray *i, const Ray *o, const Vector norm
 }
 */
 static Vector scene_illumination(
+    __global counter_t *counter,
 	BUFFER_CONST_TYPE Primitive *primitives,
 	const int numprimitives,
 	random_state_t *rnd,
@@ -171,7 +216,7 @@ static Vector scene_illumination(
 
 			BUFFER_CONST_TYPE Primitive *h;
             float light_dist = length(light_hit - hit_point);
-			bool hit = scene_intersect(primitives, numprimitives, &s_ray, &h, bvh, &light_dist, true);
+			bool hit = scene_intersect(counter, primitives, numprimitives, &s_ray, &h, bvh, &light_dist, true);
 			if (!hit) {
 				Vector emission = l->m.c * l->m.e;
 
@@ -189,6 +234,7 @@ static Vector scene_illumination(
 }
 
 static Vector scene_sample(
+    __global counter_t *counter,
 	BUFFER_CONST_TYPE Primitive *primitives,
 	const int numprimitives,
 	random_state_t *rnd,
@@ -205,7 +251,7 @@ static Vector scene_sample(
 	while (--depth) {
 		BUFFER_CONST_TYPE Primitive *s = 0;
 		float distance = FLT_MAX;
-        bool hit = scene_intersect(primitives, numprimitives, &r, &s, bvh, &distance, false);
+        bool hit = scene_intersect(counter, primitives, numprimitives, &r, &s, bvh, &distance, false);
 		if (!hit) {
 			return sample;
 		}
@@ -237,13 +283,13 @@ static Vector scene_sample(
 		if (material == Diffuse) {
 			bounce = false;
 		
-			sample = sample + illum * scene_illumination(primitives, numprimitives, rnd, s, &r, hit_point, normal, cos_i, bvh);
-		
+			sample = sample + illum * scene_illumination(counter, primitives, numprimitives, rnd, s, &r, hit_point, normal, cos_i, bvh);
+            
 			ray_bounce(&r, hit_point, normal, rnd);
 		} 
 		else if (material == Metal) {
 			bounce = true;
-			sample = sample + illum * scene_illumination(primitives, numprimitives, rnd, s, &r, hit_point, normal, cos_i, bvh);
+			//sample = sample + illum * scene_illumination(primitives, numprimitives, rnd, s, &r, hit_point, normal, cos_i, bvh);
 
 			ray_reflection(&r, hit_point, normal, cos_i);
 		}
@@ -304,6 +350,7 @@ static Ray camera_genray( BUFFER_CONST_TYPE Camera *camera, float x, float y, in
 }
 
 __kernel void raytracer(
+    __global counter_t *counter,
 	BUFFER_CONST_TYPE Primitive *primitives,
 	int numprimitives,
 	BUFFER_CONST_TYPE Camera *camera,
@@ -325,6 +372,8 @@ __kernel void raytracer(
 	const int width = get_global_size(0);
 	const int height = get_global_size(1);
 
+    COUNTER(0);
+    
 	// xor seed per work items
 	seed ^= (random_state_t)(x, y);
 
@@ -340,7 +389,7 @@ __kernel void raytracer(
 
 	// generate primary ray and path tracing
 	Ray ray = camera_genray(camera, dx, dy, width, height);
-	Vector pixel = scene_sample(primitives, numprimitives, &seed, &ray, bvh);
+	Vector pixel = scene_sample(counter, primitives, numprimitives, &seed, &ray, bvh);
 
 	// averages the pixel, except for the first
 	uint index = y * width + x;

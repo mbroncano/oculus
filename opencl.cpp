@@ -55,8 +55,8 @@ OpenCL::OpenCL() {
     
     width = 1024;
     height = 768;
-    width /= 1;
-    height /= 1;
+    width /= DOWNSCALE;
+    height /= DOWNSCALE;
 }
 
 void OpenCL::createTexture() {
@@ -86,7 +86,7 @@ Program *OpenCL::compileProgram(const char *f, const char *params) {
         double tick = wallclock();
         std::cout << "[CL]  Compiling: " << filename << "(" << sourceCode.length() << " bytes)" << std::endl;
         try {
-            std::string kparams("-cl-strict-aliasing -cl-unsafe-math-optimizations -cl-finite-math-only ");
+            std::string kparams("");//-cl-strict-aliasing -cl-unsafe-math-optimizations -cl-finite-math-only ");
             if (params)
                 kparams += std::string(params);
             
@@ -124,6 +124,7 @@ void OpenCL::createBuffers() {
         frame_b = Buffer(context, CL_MEM_READ_WRITE, width * height * sizeof(Vector));
         ray_b = Buffer(context, CL_MEM_READ_WRITE, width * height * sizeof(Ray));
         bvh_b = Buffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(BVHNode) * scene->bvhTree->bvh_vec.size(), &scene->bvhTree->bvh_vec[0]);
+        counter_b = Buffer(context, CL_MEM_READ_WRITE, sizeof(counter));
         
 #ifdef INTEROP
         image_b = ImageGL(context, CL_MEM_WRITE_ONLY, GL_TEXTURE_RECTANGLE_ARB, 0, textid);
@@ -145,6 +146,7 @@ void OpenCL::executeKernel() {
     try {
         int argc = 0;
         
+        runKernel->setArg(argc++, counter_b);
         runKernel->setArg(argc++, prim_b);
         runKernel->setArg(argc++, scene->primitive_vector.size());
         runKernel->setArg(argc++, camera_b);
@@ -159,6 +161,9 @@ void OpenCL::executeKernel() {
         runKernel->setArg(argc++, bvh_b);
         runKernel->setArg(argc++, scene->bvhTree->bvh_vec.size());
         
+        memset(&counter, 0, sizeof(counter_t));
+        queue.enqueueWriteBuffer(counter_b, CL_TRUE, 0, sizeof(counter), &counter);
+
 #ifdef INTEROP
         queue.enqueueAcquireGLObjects(&glObjects);
 #endif
@@ -172,6 +177,9 @@ void OpenCL::executeKernel() {
 #else
         queue.enqueueReadBuffer(rgb_b, CL_TRUE, 0, width * height * sizeof(Pixel), rgb);
 #endif			
+
+        queue.enqueueReadBuffer(counter_b, CL_TRUE, 0, sizeof(counter), &counter);
+
     }
     catch (Error err) {
         errorDump(err);

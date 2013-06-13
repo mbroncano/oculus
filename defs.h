@@ -9,10 +9,12 @@
 #ifndef Oculus_defs_h
 #define Oculus_defs_h
 
-#define INTEROP
+//#define INTEROP
 #define MAIN_DEVICE CL_DEVICE_TYPE_CPU
 //#define DEBUG
 #define USE_BVH
+//#define PROFILING
+#define DOWNSCALE 4
 
 #define BUFFER_CONST_TYPE __global
 //#define BUFFER_CONST_TYPE __constant

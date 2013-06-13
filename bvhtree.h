@@ -23,17 +23,19 @@ struct BBox {
     BBox() : min(vec_zero), max(vec_zero) {};
     
     BBox& operator+=(const BBox &b) {
-        min = fmin(min, b.max);
+        min = fmin(min, b.min);
         max = fmax(max, b.max);
         return *this;
     }
     
     Vector center() const {
-        Vector ret;
-        ret.x = (min.x + max.x) / 2.f;
-        ret.y = (min.y + max.y) / 2.f;
-        ret.z = (min.z + max.z) / 2.f;
-        return ret;
+        return (min + max) / 2.f;
+    }
+    
+    BBox& operator+=(const float &b) {
+        min = min - b;
+        max = max + b;
+        return *this;
     }
 };
     
@@ -73,6 +75,7 @@ struct BVHTree {
     
     BVHTree(std::vector<Primitive>& primitives);
     BVHTreeNode *Build(node_vec_t &list, size_t start, size_t end) const;
+    BVHTreeNode *BuildAlt(node_vec_t &list, size_t start, size_t end, int axis = 0) const;
     void DumpTree(BVHTreeNode *node, bvh_vec_t& list, int depth = 0) const;
 };
     

@@ -76,7 +76,11 @@ void idle() {
             openCL->scene->primitive_vector.size(),
             openCL->samples,
             seconds);
-	printf("%s\n", label);
+	printf("%s # counter: %i %.2f %.2f\n",
+           label,
+           openCL->counter.c[0]++,
+           float(openCL->counter.c[1] / openCL->counter.c[0]),
+           float(openCL->counter.c[2] / openCL->counter.c[0]));
     
 #ifndef INTEROP
 	glBindTexture(GL_TEXTURE_RECTANGLE_ARB, openCL->textid);
@@ -93,7 +97,7 @@ void glInit(int argc, char **argv) {
 	glutInit(&argc, argv);
 	glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE | GLUT_ALPHA);
 	glutInitWindowSize(1024, 768);
-	glutInitWindowPosition(50, 50);
+	glutInitWindowPosition(1300, 50);
 	glutCreateWindow(argv[0]);
     
 	glutDisplayFunc(display);
@@ -105,8 +109,8 @@ void glInit(int argc, char **argv) {
 int main(int argc, char **argv)
 {
 	Scene *scene = new Scene();
-    scene->loadJson("cornell.json");
-	//scene->testScene();
+    //scene->loadJson("cornell.json");
+	scene->testScene();
 	scene->buildBVH();
 	
 	glInit(argc, argv);

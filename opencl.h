@@ -26,6 +26,7 @@ struct OpenCL {
 	Kernel *initKernel;
 	Kernel *runKernel;
 	CommandQueue queue;
+    counter_t counter;
     
 	int width;
 	int height;
@@ -33,7 +34,7 @@ struct OpenCL {
 	Scene *scene;
 	
 	GLuint textid;
-	Buffer prim_b, camera_b, random_b, frame_b, ray_b, bvh_b;
+	Buffer prim_b, camera_b, random_b, frame_b, ray_b, bvh_b, counter_b;
     
 #ifdef INTEROP
 	ImageGL image_b;
