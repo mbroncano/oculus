@@ -148,7 +148,7 @@ void OpenCL::executeKernel() {
         runKernel->setArg(argc++, prim_b);
         runKernel->setArg(argc++, scene->primitive_vector.size());
         runKernel->setArg(argc++, camera_b);
-        runKernel->setArg(argc++, (random_state_t){(cl_uint)random(), (cl_uint)random()});
+        runKernel->setArg(argc++, (random_state_t){{(cl_uint)random(), (cl_uint)random()}});
         runKernel->setArg(argc++, frame_b);
 #ifdef INTEROP
         runKernel->setArg(argc++, image_b);

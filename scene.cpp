@@ -33,27 +33,27 @@ void Scene::testScene() {
         for (int j = 0; j < n; j ++)
             for (int k = 0; k < n; k ++) {
                 Primitive s;
-                s.sphere.c = (Vector){cofs + i * ofs, cofs + j * ofs, cofs + k * ofs};
+                s.sphere.c = (Vector){{static_cast<cl_float>(cofs + i * ofs), static_cast<cl_float>(cofs + j * ofs), static_cast<cl_float>(cofs + k * ofs)}};
                 s.sphere.r = r;
                 s.t = sphere;
-                s.m.c = (Vector){0.9f * i / n, 0.9f * j / n, 0.9f * k / n};
+                s.m.c = (Vector){{0.9f * i / n, 0.9f * j / n, 0.9f * k / n}};
                 s.m.s = Diffuse;
                 s.m.e = 0.f;
                 primitive_vector.push_back(s);
             }
     
     Primitive t;
-    t.triangle.p[0] = (Vector){20.f, 180.f, 20.f};
-    t.triangle.p[1] = (Vector){20.f, 180.f, 80.f};
-    t.triangle.p[2] = (Vector){80.f, 180.f, 20.f};
+    t.triangle.p[0] = (Vector){{20.f, 180.f, 20.f}};
+    t.triangle.p[1] = (Vector){{20.f, 180.f, 80.f}};
+    t.triangle.p[2] = (Vector){{80.f, 180.f, 20.f}};
     t.t = triangle;
-    t.m.c = (Vector){0.9f, 0.9f, 0.9f};
+    t.m.c = (Vector){{0.9f, 0.9f, 0.9f}};
     t.m.s = Diffuse;
     t.m.e = 12.f;
     primitive_vector.push_back(t);
     
-    camera.o = (Vector){100.f, 200.f, 200.f};
-    camera.t = (Vector){50.f, 50.f, 50.f};
+    camera.o = (Vector){{100.f, 200.f, 200.f}};
+    camera.t = (Vector){{50.f, 50.f, 50.f}};
     
 }
 

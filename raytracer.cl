@@ -119,7 +119,7 @@ static float scene_intersect_bvh(__global const Primitive *primitives, const int
 	float distance = FLT_MAX;
 	
     int cur = 0;
-    int end = bvh[0].skip;
+    int end = bvh->skip;
     
     while (cur < end) {
         __global BVHNode *n = bvh + cur;

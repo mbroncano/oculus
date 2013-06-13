@@ -19,12 +19,7 @@ inline Vector vector_rotate(const Vector normal, const float s0, const float s1)
 	float r2s = sqrt(r2);
 	
 	Vector w = normal;
-	Vector a;
-	// HACK: ???
-	if (fabs(w.x) > .1f)
-		a = vec_y;
-	else
-		a = vec_x;
+	Vector a = (fabs(w.x) > .1f) ? vec_y : vec_x;
 	Vector u = normalize(cross(a, w));
 	Vector v = cross(w, u);
 	
