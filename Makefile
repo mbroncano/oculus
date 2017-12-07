@@ -3,7 +3,7 @@ HEADERS=defs.h geometry.h cl.hpp util.h scene.h bvhtree.h opencl.h opencl_debug.
 CPP=clang++
 CC=clang
 LDFLAGS=
-CCFLAGS=-framework OpenCL -framework OpenGl -framework Glut -O3 -O2 -g
+CCFLAGS=-framework OpenCL -framework OpenGl -framework Glut -O3 -O2 -g -Wno-deprecated-declarations -std=gnu++11
 
 all: parson.o oculus
 
